@@ -4,7 +4,7 @@ import * as z from 'zod';
 
 // --- Zod Schema Definition (Should match the frontend exactly) ---
 const usPostalCodeRegex = /^\d{5}(\d{4})?<span class="math-inline">/;
-const caPostalCodeRegex = /^\[A\-Z\]\\d\[A\-Z\]\\d\[A\-Z\]\\d</span>/;
+const caPostalCodeRegex = /^[A-Z]\d[A-Z]\d[A-Z]\d$/;
 
 const baseFormSchema = z.object({
   name: z.string().trim().min(2).max(100),
