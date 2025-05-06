@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { PrismaClient } from '@prisma/client'
-import { PrismaClientKnownRequestError } from '@prisma/client/runtime'
+import { Prisma } from '@prisma/client'
 import * as z from 'zod'
 
 // --- Zod Schema Definition (Should match the frontend exactly) ---
@@ -78,7 +78,7 @@ export default async function handler(
     const validatedData = refinedFormSchema.parse(req.body)
 
     // 3. Save data to database using Prisma
-    // Ensure your Prisma model is named 'contactSubmission' or update the name here
+
     const submission = await prisma.contactSubmission.create({
       data: {
         name: validatedData.name,
@@ -109,15 +109,13 @@ export default async function handler(
       })
     }
 
-    if (error instanceof PrismaClientKnownRequestError) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
       {
         console.error('Prisma Error:', error.code, error.message)
         // Provide a generic database error message
-        return res
-          .status(500)
-          .json({
-            message: 'Could not save submission due to a database error.',
-          })
+        return res.status(500).json({
+          message: 'Could not save submission due to a database error.',
+        })
       }
     }
 
