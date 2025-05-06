@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { PrismaClient } from '@prisma/client'
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime'
 import * as z from 'zod'
 
 // --- Zod Schema Definition (Should match the frontend exactly) ---
@@ -53,11 +54,9 @@ let prisma: PrismaClient
 if (process.env.NODE_ENV === 'production') {
   prisma = new PrismaClient()
 } else {
-  // @ts-expect-error - HMR workaround: Attach Prisma client to global in dev
   if (!global.prisma) {
-    // @ts-expect-error - HMR workaround: Attach Prisma client to global in dev
     global.prisma = new PrismaClient()
-  } // @ts-expect-error - HMR workaround: Attach Prisma client to global in dev
+  }
   prisma = global.prisma
 }
 
@@ -110,23 +109,34 @@ export default async function handler(
       })
     }
 
-    // Handle known Prisma errors
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
-      console.error('Prisma Error:', error.code, error.message)
-      // Provide a generic database error message
-      return res
-        .status(500)
-        .json({ message: 'Could not save submission due to a database error.' })
+    if (error instanceof PrismaClientKnownRequestError) {
+      {
+        console.error('Prisma Error:', error.code, error.message)
+        // Provide a generic database error message
+        return res
+          .status(500)
+          .json({
+            message: 'Could not save submission due to a database error.',
+          })
+      }
     }
 
     // Handle other unexpected errors
-    console.error('API Error:', error)
-    const errorMessage =
+    const derivedErrorMessage =
       error instanceof Error ? error.message : 'An unknown error occurred.'
+
+    console.error('API Error (derived message):', derivedErrorMessage)
+    // You might still want to log the raw error object for more debugging details,
+    // as console.error can handle it.
+    if (!(error instanceof Error)) {
+      // If it wasn't a standard error, log the raw thing too
+      console.error('API Error (raw non-Error object):', error)
+    }
+
     return res
       .status(500)
-      .json({ message: 'Internal Server Error', error: errorMessage })
+      .json({ message: 'Internal Server Error', error: derivedErrorMessage })
+    // Note: Explicit prisma.$disconnect() is generally not needed here
+    // due to Prisma's connection management and the global instance pattern.
   }
-  // Note: Explicit prisma.$disconnect() is generally not needed here
-  // due to Prisma's connection management and the global instance pattern.
 }
