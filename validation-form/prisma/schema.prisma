@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL") // Make sure this is set in .env.local
+}
+
+model ContactSubmission { // Match table name, often PascalCase convention
+  id            BigInt   @id @default(autoincrement())
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  name          String   @db.VarChar(100)
+  email         String   @db.VarChar(254)
+  phone         String   @db.VarChar(20)
+  streetAddress String   @map("street_address") @db.Text
+  city          String   @db.VarChar(100)
+  stateProvince String   @map("state_province") @db.VarChar(100)
+  country       String   @db.VarChar(2)
+  postalCode    String   @map("postal_code") @db.VarChar(10)
+  message       String?  @db.Text // Optional field marked with ?
+
+  @@map("contact_submissions") // Maps model to the snake_case table name
+}
