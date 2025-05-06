@@ -1,173 +1,54 @@
 'use client'
-import React, {
-  ReactNode,
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-  FormHTMLAttributes,
-  useEffect,
-} from 'react'
+
+import React, { useEffect, useRef } from 'react'
+import { useFormState, useFormStatus } from 'react-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
+import {
+  refinedFormSchema as clientSchema,
+  ContactFormData,
+} from '@/lib/schemas'
+import { submitContactForm, SubmitFormState } from '@/app/actions'
 
-// --- Zod Schema Definition ---
-
-const usPostalCodeRegex = /^\d{5}(\d{4})?$/
-const caPostalCodeRegex = /^[A-Z]\d[A-Z]\d[A-Z]\d$/
-
-const baseFormSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, { message: 'Name must be at least 2 characters.' })
-    .max(100, { message: 'Name must be 100 characters or less.' }),
-  email: z
-    .string()
-    .trim()
-    .toLowerCase()
-    .email({ message: 'Invalid email address.' })
-    .max(254, { message: 'Email address seems too long.' }),
-  phone: z
-    .string()
-    .trim()
-    .transform((val) => val.replace(/[\s\-()]/g, ''))
-    .pipe(
-      z
-        .string()
-        .min(10, { message: 'Phone number must be at least 10 digits.' })
-        .max(15, { message: 'Phone number seems too long.' })
-        .regex(/^[+]?\d+$/, {
-          message: 'Invalid phone number format (digits and optional + only).',
-        })
-    ),
-  streetAddress: z
-    .string()
-    .trim()
-    .min(5, { message: 'Street address seems too short.' })
-    .max(255, { message: 'Street address must be 255 characters or less.' }),
-  city: z
-    .string()
-    .trim()
-    .min(2, { message: 'City name seems too short.' })
-    .max(100, { message: 'City name must be 100 characters or less.' }),
-  stateProvince: z
-    .string()
-    .trim()
-    .min(2, { message: 'State/Province seems too short.' })
-    .max(100, { message: 'State/Province must be 100 characters or less.' }),
-  country: z.enum(['US', 'CA'], {
-    required_error: 'Country is required.',
-    invalid_type_error: 'Invalid country selected.',
-  }),
-  postalCode: z
-    .string()
-    .trim()
-    .transform((val) => val.replace(/[ -]/g, '').toUpperCase())
-    .pipe(z.string().min(1, { message: 'Postal code is required.' })),
-  message: z
-    .string()
-    .trim()
-    .max(5000, { message: 'Message must be 5000 characters or less.' })
-    .optional(),
-})
-
-const refinedFormSchema = baseFormSchema.refine(
-  (data) => {
-    if (!data.country || !data.postalCode) return true
-    if (data.country === 'US') return usPostalCodeRegex.test(data.postalCode)
-    if (data.country === 'CA') return caPostalCodeRegex.test(data.postalCode)
-    return false
-  },
-  {
-    message: 'Invalid postal code format for the selected country.',
-    path: ['postalCode'],
-  }
+// --- Shadcn UI Component Placeholders or your actual UI library components ---
+// (Button, Input, Select, Textarea, Form, FormItem, FormLabel, FormControl, FormMessage, FormDescription)
+const Button = ({
+  children,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  <button {...props}>{children}</button>
 )
-
-type ContactFormData = z.infer<typeof refinedFormSchema>
-
-// --- Interface Definitions---
-
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  children: ReactNode
-}
-
-interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
-  children: ReactNode
-}
-
-interface FormProps extends FormHTMLAttributes<HTMLFormElement> {
-  children: React.ReactNode
-}
-
-interface FormItemProps {
-  children: React.ReactNode
-}
-interface FormLabelProps {
-  children: React.ReactNode
-  htmlFor?: string
-}
-interface FormControlProps {
-  children: React.ReactNode
-}
-interface FormMessageProps {
-  children: React.ReactNode
-}
-interface FormDescriptionProps {
-  children: React.ReactNode
-}
-
-interface ToastArgs {
-  title: string
-  description: string
-  // variant?: 'default' | 'destructive';
-}
-
-// --- Shadcn UI Component Placeholders (Using Interfaces or Base Types) ---
-
-const Button = ({ children, ...props }: ButtonProps) => (
-  <button
-    className='px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50'
-    {...props}
-  >
+const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+  <input {...props} />
+)
+const Select = ({
+  children,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+  <select {...props}>{children}</select>
+)
+const Textarea = (props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+  <textarea {...props} />
+)
+const Form = React.forwardRef<
+  HTMLFormElement,
+  React.FormHTMLAttributes<HTMLFormElement>
+>(({ children, ...props }, ref) => (
+  <form ref={ref} {...props}>
     {children}
-  </button>
-)
-
-const Input = (props: InputHTMLAttributes<HTMLInputElement>) => (
-  <input
-    className='block w-full px-3 py-2 mt-1 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm disabled:bg-gray-100'
-    {...props}
-  />
-)
-
-const Select = ({ children, ...props }: SelectProps) => (
-  <select
-    className='block w-full py-2 pl-3 pr-10 mt-1 text-base bg-white border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm'
-    {...props}
-  >
-    {children}
-  </select>
-)
-
-const Textarea = (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-  <textarea
-    className='block w-full px-3 py-2 mt-1 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm'
-    rows={4}
-    {...props}
-  />
-)
-
-const Form = ({ children, ...props }: FormProps) => (
-  <form {...props}>{children}</form>
-)
-
-const FormItem = ({ children }: FormItemProps) => (
+  </form>
+))
+Form.displayName = 'Form'
+const FormItem = ({ children }: { children: React.ReactNode }) => (
   <div className='mb-4'>{children}</div>
 )
-const FormLabel = ({ children, htmlFor }: FormLabelProps) => (
+const FormLabel = ({
+  children,
+  htmlFor,
+}: {
+  children: React.ReactNode
+  htmlFor?: string
+}) => (
   <label
     htmlFor={htmlFor}
     className='block mb-1 text-sm font-medium text-gray-700'
@@ -175,23 +56,53 @@ const FormLabel = ({ children, htmlFor }: FormLabelProps) => (
     {children}
   </label>
 )
-const FormControl = ({ children }: FormControlProps) => <div>{children}</div>
-const FormMessage = ({ children }: FormMessageProps) => (
+const FormControl = ({ children }: { children: React.ReactNode }) => (
+  <div>{children}</div>
+)
+const FormMessage = ({ children }: { children: React.ReactNode }) => (
   <p className='mt-1 text-sm text-red-600'>{children}</p>
 )
-const FormDescription = ({ children }: FormDescriptionProps) => (
-  <p className='mt-1 text-sm text-gray-500'>{children}</p>
-)
-
-// Placeholder toast function using its interface
+interface ToastArgs {
+  title: string
+  description: string
+}
 const toast = ({ title, description }: ToastArgs) =>
   console.log('Toast:', title, description)
 
-// --- React Component ---
+// Separate SubmitButton component to use useFormStatus
+function FormSubmitButton() {
+  const { pending } = useFormStatus() // Gets pending state from the <form>
+  return (
+    <Button
+      type='submit'
+      disabled={pending}
+      className='px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50'
+    >
+      {pending ? 'Submitting...' : 'Submit Form'}
+    </Button>
+  )
+}
 
-function ContactForm() {
-  const form = useForm<ContactFormData>({
-    resolver: zodResolver(refinedFormSchema),
+export default function ContactForm() {
+  // useFormState for Server Action state management
+  const [state, formAction] = useFormState<
+    SubmitFormState | undefined,
+    FormData
+  >(
+    submitContactForm, // The server action
+    undefined // Initial state
+  )
+
+  // react-hook-form for client-side validation and field management
+  const {
+    register,
+    formState: { errors: clientSideErrors, isDirty },
+    watch,
+    trigger,
+    getFieldState,
+    reset, // To reset form fields
+  } = useForm<ContactFormData>({
+    resolver: zodResolver(clientSchema), // Use the same Zod schema for client-side validation
     mode: 'onChange',
     defaultValues: {
       name: '',
@@ -206,16 +117,10 @@ function ContactForm() {
     },
   })
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    watch,
-    trigger,
-    getFieldState,
-  } = form
   const watchedCountry = watch('country')
+  const formRef = useRef<HTMLFormElement>(null)
 
+  // Effect for dynamic postal code validation based on country
   useEffect(() => {
     const postalCodeState = getFieldState('postalCode')
     if (
@@ -224,73 +129,46 @@ function ContactForm() {
     ) {
       trigger('postalCode')
     }
-  }, [watchedCountry, trigger, getFieldState]) // Added getFieldState to dependency array
+  }, [watchedCountry, trigger, getFieldState, isDirty])
 
-  const processForm = async (data: ContactFormData) => {
-    console.log('Validated & Transformed Data:', data)
-    toast({ title: 'Submitting...', description: 'Sending data to the API.' })
-
-    try {
-      const response = await fetch('/api/submit-form', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-
-      if (!response.ok) {
-        let errorResult: { message?: string } = {}
-        try {
-          errorResult = await response.json()
-        } catch (jsonError) {
-          // Log the specific JSON parsing error
-          console.error(
-            'Failed to parse API error response as JSON:',
-            jsonError
-          )
-          // Fallback message
-          errorResult = {
-            message:
-              response.statusText ||
-              'API request failed with non-JSON response',
-          }
-        }
-        throw new Error(
-          errorResult.message ||
-            `API request failed with status ${response.status}`
-        )
-      }
-
-      const result: { message?: string } = await response.json()
-      console.log('API Success:', result)
-      toast({
-        title: 'Success!',
-        description: result.message || 'Form submitted successfully.',
-      })
-      // form.reset();
-    } catch (error) {
-      console.error('Submission Error:', error)
-      toast({
-        title: 'Error',
-        description:
-          error instanceof Error ? error.message : 'An unknown error occurred.',
-        // variant: "destructive",
-      })
+  // Effect to handle Server Action response (success/error messages, form reset)
+  useEffect(() => {
+    if (state?.success) {
+      toast({ title: 'Success!', description: state.message })
+      reset() // Reset react-hook-form fields
+    } else if (state && !state.success && state.message && !state.errors) {
+      // General error message from server action (not field-specific)
+      toast({ title: 'Error', description: state.message })
     }
-  }
+    // Field-specific errors from `state.errors` will be handled directly in the JSX below
+  }, [state, reset])
 
   return (
     <div className='max-w-lg p-6 mx-auto font-sans bg-white rounded-lg shadow-md'>
       <h2 className='mb-6 text-2xl font-semibold text-gray-800'>Contact Us</h2>
-      <Form onSubmit={handleSubmit(processForm)} className='space-y-4'>
-        {/* --- Form Fields --- */}
+      {/*
+        The form `action` prop now directly calls the server action via `formAction` from `useFormState`.
+        react-hook-form's `handleSubmit` is NOT used directly on the <form onSubmit={...}> here.
+        Client-side validation still runs due to `zodResolver` in `useForm`.
+        If client-side validation fails, react-hook-form prevents form submission.
+        If client-side validation passes, the form submits, and `formAction` (the server action) is invoked.
+      */}
+      <Form ref={formRef} action={formAction} className='space-y-4'>
+        {/* Name Field */}
         <FormItem>
           <FormLabel htmlFor='name'>Full Name</FormLabel>
           <FormControl>
             <Input id='name' placeholder='John Doe' {...register('name')} />
           </FormControl>
-          {errors.name && <FormMessage>{errors.name.message}</FormMessage>}
+          {clientSideErrors.name && (
+            <FormMessage>{clientSideErrors.name.message}</FormMessage>
+          )}
+          {state?.errors?.name && (
+            <FormMessage>{state.errors.name.join(', ')}</FormMessage>
+          )}
         </FormItem>
 
+        {/* Email Field */}
         <FormItem>
           <FormLabel htmlFor='email'>Email Address</FormLabel>
           <FormControl>
@@ -301,9 +179,15 @@ function ContactForm() {
               {...register('email')}
             />
           </FormControl>
-          {errors.email && <FormMessage>{errors.email.message}</FormMessage>}
+          {clientSideErrors.email && (
+            <FormMessage>{clientSideErrors.email.message}</FormMessage>
+          )}
+          {state?.errors?.email && (
+            <FormMessage>{state.errors.email.join(', ')}</FormMessage>
+          )}
         </FormItem>
 
+        {/* Phone Field - Add other fields similarly, showing both client and server errors */}
         <FormItem>
           <FormLabel htmlFor='phone'>Phone Number</FormLabel>
           <FormControl>
@@ -314,10 +198,15 @@ function ContactForm() {
               {...register('phone')}
             />
           </FormControl>
-          <FormDescription>Enter a valid phone number.</FormDescription>
-          {errors.phone && <FormMessage>{errors.phone.message}</FormMessage>}
+          {clientSideErrors.phone && (
+            <FormMessage>{clientSideErrors.phone.message}</FormMessage>
+          )}
+          {state?.errors?.phone && (
+            <FormMessage>{state.errors.phone.join(', ')}</FormMessage>
+          )}
         </FormItem>
 
+        {/* Street Address */}
         <FormItem>
           <FormLabel htmlFor='streetAddress'>Street Address</FormLabel>
           <FormControl>
@@ -327,19 +216,29 @@ function ContactForm() {
               {...register('streetAddress')}
             />
           </FormControl>
-          {errors.streetAddress && (
-            <FormMessage>{errors.streetAddress.message}</FormMessage>
+          {clientSideErrors.streetAddress && (
+            <FormMessage>{clientSideErrors.streetAddress.message}</FormMessage>
+          )}
+          {state?.errors?.streetAddress && (
+            <FormMessage>{state.errors.streetAddress.join(', ')}</FormMessage>
           )}
         </FormItem>
 
+        {/* City */}
         <FormItem>
           <FormLabel htmlFor='city'>City</FormLabel>
           <FormControl>
             <Input id='city' placeholder='Anytown' {...register('city')} />
           </FormControl>
-          {errors.city && <FormMessage>{errors.city.message}</FormMessage>}
+          {clientSideErrors.city && (
+            <FormMessage>{clientSideErrors.city.message}</FormMessage>
+          )}
+          {state?.errors?.city && (
+            <FormMessage>{state.errors.city.join(', ')}</FormMessage>
+          )}
         </FormItem>
 
+        {/* State/Province */}
         <FormItem>
           <FormLabel htmlFor='stateProvince'>State / Province</FormLabel>
           <FormControl>
@@ -349,15 +248,19 @@ function ContactForm() {
               {...register('stateProvince')}
             />
           </FormControl>
-          {errors.stateProvince && (
-            <FormMessage>{errors.stateProvince.message}</FormMessage>
+          {clientSideErrors.stateProvince && (
+            <FormMessage>{clientSideErrors.stateProvince.message}</FormMessage>
+          )}
+          {state?.errors?.stateProvince && (
+            <FormMessage>{state.errors.stateProvince.join(', ')}</FormMessage>
           )}
         </FormItem>
 
+        {/* Country */}
         <FormItem>
           <FormLabel htmlFor='country'>Country</FormLabel>
           <FormControl>
-            <Select id='country' {...register('country')}>
+            <Select id='country' {...register('country')} defaultValue=''>
               <option value='' disabled>
                 Select a country
               </option>
@@ -365,11 +268,15 @@ function ContactForm() {
               <option value='CA'>Canada</option>
             </Select>
           </FormControl>
-          {errors.country && (
-            <FormMessage>{errors.country.message}</FormMessage>
+          {clientSideErrors.country && (
+            <FormMessage>{clientSideErrors.country.message}</FormMessage>
+          )}
+          {state?.errors?.country && (
+            <FormMessage>{state.errors.country.join(', ')}</FormMessage>
           )}
         </FormItem>
 
+        {/* Postal Code */}
         <FormItem>
           <FormLabel htmlFor='postalCode'>Postal Code</FormLabel>
           <FormControl>
@@ -386,14 +293,15 @@ function ContactForm() {
               disabled={!watchedCountry}
             />
           </FormControl>
-          <FormDescription>
-            Postal code format depends on the selected country.
-          </FormDescription>
-          {errors.postalCode && (
-            <FormMessage>{errors.postalCode.message}</FormMessage>
+          {clientSideErrors.postalCode && (
+            <FormMessage>{clientSideErrors.postalCode.message}</FormMessage>
+          )}
+          {state?.errors?.postalCode && (
+            <FormMessage>{state.errors.postalCode.join(', ')}</FormMessage>
           )}
         </FormItem>
 
+        {/* Message */}
         <FormItem>
           <FormLabel htmlFor='message'>Message (Optional)</FormLabel>
           <FormControl>
@@ -403,17 +311,23 @@ function ContactForm() {
               {...register('message')}
             />
           </FormControl>
-          {errors.message && (
-            <FormMessage>{errors.message.message}</FormMessage>
+          {clientSideErrors.message && (
+            <FormMessage>{clientSideErrors.message?.message}</FormMessage>
+          )}
+          {state?.errors?.message && (
+            <FormMessage>{state.errors.message.join(', ')}</FormMessage>
           )}
         </FormItem>
 
-        <Button type='submit' disabled={isSubmitting}>
-          {isSubmitting ? 'Submitting...' : 'Submit'}
-        </Button>
+        {/* Display general (non-field) error messages from server state */}
+        {state && !state.success && !state.errors && state.message && (
+          <FormItem>
+            <FormMessage>{state.message}</FormMessage>
+          </FormItem>
+        )}
+
+        <FormSubmitButton />
       </Form>
     </div>
   )
 }
-
-export default ContactForm
