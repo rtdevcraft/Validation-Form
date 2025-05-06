@@ -27,7 +27,7 @@ if (process.env.NODE_ENV === 'production') {
 export interface SubmitFormState {
   message: string
   errors?: Partial<Record<keyof z.infer<typeof refinedFormSchema>, string[]>>
-  submissionId?: number
+  submissionId?: bigint
   success: boolean
   errorDetail?: string
 }
