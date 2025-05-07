@@ -27,7 +27,7 @@ if (process.env.NODE_ENV === 'production') {
 export interface SubmitFormState {
   message: string
   errors?: Partial<Record<keyof z.infer<typeof refinedFormSchema>, string[]>>
-  submissionId?: bigint
+  submissionId?: string
   success: boolean
   errorDetail?: string
 }
@@ -47,11 +47,7 @@ export async function submitContactForm(
       // If a key were to appear multiple times with string values, this would take the last one.
       rawData[key] = value
     } else {
-      // FormData values can also be File objects. Since your Zod schema expects strings
-      // for all defined fields, we will ignore non-string values here.
-      // If a required field in your Zod schema doesn't get a string value from FormData,
-      // Zod's `parse` method will correctly identify it as a missing/invalid field.
-      // For optional fields, not adding it here means Zod will see it as undefined, which is correct.
+      // FormData values can also be File objects.
       console.warn(
         `${logPrefix} Value for key "${key}" from FormData was not a string (it was type: ${typeof value}). ` +
           `It will be treated as missing by Zod if the field is required, or undefined if optional.`
@@ -89,7 +85,7 @@ export async function submitContactForm(
     // 4. Send successful response
     return {
       message: 'Submission successful!',
-      submissionId: submission.id,
+      submissionId: submission.id.toString(),
       success: true,
     }
   } catch (error: unknown) {
