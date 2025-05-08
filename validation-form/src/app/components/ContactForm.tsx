@@ -6,7 +6,6 @@ import React, {
   useState,
   useTransition,
   useCallback,
-  useMemo,
 } from 'react'
 import { useActionState } from 'react'
 import { useForm, FieldErrors } from 'react-hook-form'
@@ -64,17 +63,13 @@ export default function ContactForm() {
   const watchedCountry = watch('country')
   const formRef = useRef<HTMLFormElement>(null)
 
-  const handlePostalCodeInteractionAttempt = useCallback(
-    (event: React.MouseEvent<HTMLDivElement>) => {
-      if (!watchedCountry) {
-        toast.error(
-          'Please select your country first before entering a postal code.'
-        )
-      } else {
-      }
-    },
-    [watchedCountry]
-  )
+  const handlePostalCodeInteractionAttempt = useCallback(() => {
+    if (!watchedCountry) {
+      toast.error(
+        'Please select your country first before entering a postal code.'
+      )
+    }
+  }, [watchedCountry])
 
   const onValidSubmit = useCallback(
     (data: ContactFormData) => {
