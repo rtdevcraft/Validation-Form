@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { Toaster } from 'react-hot-toast'
 import { Barlow } from 'next/font/google'
 import './globals.css'
 
@@ -20,7 +21,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang='en'>
-      <body className={`${barlow.variable} antialiased`}>{children}</body>
+      <body className={`${barlow.variable} antialiased`}>
+        {children}
+        <Toaster
+          position='top-center'
+          reverseOrder={false}
+          toastOptions={{
+            duration: 5000,
+          }}
+        />
+      </body>
     </html>
   )
 }
