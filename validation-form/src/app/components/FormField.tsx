@@ -46,20 +46,38 @@ export const FormField = <TFieldValues extends FieldValues>({
     .replace(/\s+/g, ' ')
 
   const baseLabelClasses =
-    'absolute z-10 origin-[0] transform duration-200 ease-in-out bg-transparent px-1 pointer-events-none left-4 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-base peer-focus:top-[-1rem] peer-focus:-translate-y-0 peer-focus:text-xs peer-[:not(:placeholder-shown)]:top-[-1rem] peer-[:not(:placeholder-shown)]:-translate-y-0 peer-[:not(:placeholder-shown)]:text-xs'
+    'absolute z-10 origin-[0] transform duration-200 ease-in-out bg-transparent px-1 pointer-events-none left-4'
 
-  const initialLabelTextColorInsideInput = hasError
-    ? 'text-red-500'
-    : 'text-black'
+  // --- Default state (label is "down", acting as placeholder) ---
+  const defaultLabelStateClasses = `
+      peer-placeholder-shown:top-1/2 
+      peer-placeholder-shown:-translate-y-1/2 
+      peer-placeholder-shown:text-base 
+      ${
+        hasError
+          ? 'peer-placeholder-shown:text-red-500'
+          : 'peer-placeholder-shown:text-black'
+      }
+    `
 
-  const topStateLabelTextColor = 'text-white'
+  // --- Active state (label is "up", because input is focused OR has value) ---
+  const activeLabelStateClasses = `
+      peer-focus:top-[-1rem] 
+      peer-focus:-translate-y-0 
+      peer-focus:text-xs 
+      peer-focus:text-white 
+      
+      peer-[:not(:placeholder-shown)]:top-[-1rem] 
+      peer-[:not(:placeholder-shown)]:-translate-y-0 
+      peer-[:not(:placeholder-shown)]:text-xs 
+      peer-[:not(:placeholder-shown)]:text-white
+    `
 
   const finalLabelClasses = `
-    ${baseLabelClasses}
-    ${initialLabelTextColorInsideInput} 
-    peer-focus:${topStateLabelTextColor}
-    peer-[:not(:placeholder-shown)]:${topStateLabelTextColor}
-  `
+      ${baseLabelClasses}
+      ${defaultLabelStateClasses}
+      ${activeLabelStateClasses}
+    `
     .trim()
     .replace(/\s+/g, ' ')
 

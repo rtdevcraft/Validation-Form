@@ -44,7 +44,7 @@ const baseFormSchema = z.object({
     .trim()
     .min(2, 'State/Province seems too short.')
     .max(100, 'State/Province must be 100 characters or less.'),
-  country: z.enum(['US', 'CA'], { required_error: 'Country is required.' }),
+  country: z.enum(['US', 'CA', ''], { required_error: 'Country is required.' }),
   postalCode: z
     .string()
     .trim()

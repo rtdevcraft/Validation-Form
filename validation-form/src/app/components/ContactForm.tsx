@@ -8,7 +8,7 @@ import React, {
   useCallback,
 } from 'react'
 import { useActionState } from 'react'
-import { useForm, FieldErrors } from 'react-hook-form'
+import { useForm, FieldErrors, Controller } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   refinedFormSchema as clientSchema,
@@ -16,14 +16,20 @@ import {
 } from '@/lib/schemas'
 import { submitContactForm, SubmitFormState } from '@/app/actions'
 import { FormField } from './FormField'
-import { SelectField } from './SelectField'
+import { FloatingLabelSelect } from './FloatingLabelSelect'
 import { FormSubmitButton } from './FormSubmitButton'
 import toast from 'react-hot-toast'
 
-// Define countryOptions outside the component as it's static
-const COUNTRY_OPTIONS = [
+type SelectOption = {
+  value: string
+  label: string
+}
+
+const COUNTRY_OPTIONS: SelectOption[] = [
   { value: 'US', label: 'United States' },
   { value: 'CA', label: 'Canada' },
+  // Add an explicit placeholder option for the list if you want user to be able to re-select "empty"
+  //{ value: '', label: 'Select your country' }, // Typically not needed if button shows placeholder
 ]
 
 export default function ContactForm() {
@@ -44,6 +50,7 @@ export default function ContactForm() {
     trigger,
     getFieldState,
     reset,
+    control,
   } = useForm<ContactFormData>({
     resolver: zodResolver(clientSchema),
     mode: 'onChange',
@@ -54,7 +61,7 @@ export default function ContactForm() {
       streetAddress: '',
       city: '',
       stateProvince: '',
-      country: undefined,
+      country: '',
       postalCode: '',
       message: '',
     },
@@ -241,15 +248,28 @@ export default function ContactForm() {
             />
           </div>
 
-          {/* Country Select */}
+          {/* Country Select - Using Controller with FloatingLabelSelect */}
           <div className='sm:col-span-3'>
-            <SelectField
-              id='country'
-              label='Country'
-              register={register}
-              options={COUNTRY_OPTIONS} // Use options defined outside
-              hasError={fieldHasError('country')}
-              errorMessage={getErrorMessage('country')}
+            <Controller
+              name='country'
+              control={control}
+              rules={{ required: 'Country is required' }}
+              render={({ field, fieldState: { error } }) => (
+                <FloatingLabelSelect
+                  id='country'
+                  label='Country'
+                  options={COUNTRY_OPTIONS}
+                  value={field.value}
+                  onChange={field.onChange}
+                  onBlur={field.onBlur}
+                  hasError={!!error}
+                  errorMessage={error?.message}
+                  placeholder='' // This text appears in the button if value is empty
+                  // To match the width of the ZIP Code field if they are in the same grid row:
+                  // className="h-full" // If FormField has a specific height wrapper
+                  // buttonClassName="h-full" // If the button needs to fill height
+                />
+              )}
             />
           </div>
 

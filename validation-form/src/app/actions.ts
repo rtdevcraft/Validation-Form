@@ -38,33 +38,30 @@ export async function submitContactForm(
 ): Promise<SubmitFormState> {
   const logPrefix = '[Server Action submitContactForm]'
   console.log(`${logPrefix} Action invoked.`)
+  console.time(`${logPrefix} Total Execution Time`) // <--- START Total Timer
 
-  // Convert FormData to a plain object suitable for Zod schema.
   const rawData: { [key: string]: string } = {}
+  console.time(`${logPrefix} FormData Processing`) // <--- START FormData Processing Timer
   for (const [key, value] of formData.entries()) {
     if (typeof value === 'string') {
-      // Your current form doesn't have fields that would submit multiple values for the same name.
-      // If a key were to appear multiple times with string values, this would take the last one.
       rawData[key] = value
     } else {
-      // FormData values can also be File objects.
       console.warn(
         `${logPrefix} Value for key "${key}" from FormData was not a string (it was type: ${typeof value}). ` +
           `It will be treated as missing by Zod if the field is required, or undefined if optional.`
       )
     }
   }
-
-  console.log(`${logPrefix} Raw data prepared for Zod validation:`, rawData) // Be mindful of logging sensitive data
+  console.timeEnd(`${logPrefix} FormData Processing`) // <--- END FormData Processing Timer
+  console.log(`${logPrefix} Raw data prepared for Zod validation:`, rawData)
 
   try {
-    // 2. Validate request body with Zod schema
-    console.log(`${logPrefix} Validating request body...`)
+    console.time(`${logPrefix} Zod Validation`) // <--- START Zod Validation Timer
     const validatedData = refinedFormSchema.parse(rawData)
+    console.timeEnd(`${logPrefix} Zod Validation`) // <--- END Zod Validation Timer
     console.log(`${logPrefix} Data validated successfully by Zod.`)
 
-    // 3. Save data to database using Prisma
-    console.log(`${logPrefix} Attempting to save submission to database...`)
+    console.time(`${logPrefix} Prisma Create`) // <--- START Prisma Create Timer
     const submission = await prisma.contactSubmission.create({
       data: {
         name: validatedData.name,
@@ -75,21 +72,24 @@ export async function submitContactForm(
         stateProvince: validatedData.stateProvince,
         country: validatedData.country,
         postalCode: validatedData.postalCode,
-        message: validatedData.message, // Will be undefined if not provided and optional
+        message: validatedData.message,
       },
     })
+    console.timeEnd(`${logPrefix} Prisma Create`) // <--- END Prisma Create Timer
     console.log(
-      `${logPrefix} Submission saved to Supabase. ID: ${submission.id}`
+      // You mentioned Supabase here, but your client is Prisma. Assuming Prisma is interacting with your DB (which could be hosted on Supabase).
+      `${logPrefix} Submission saved to Database. ID: ${submission.id}`
     )
 
-    // 4. Send successful response
+    console.timeEnd(`${logPrefix} Total Execution Time`) // <--- END Total Timer for success path
     return {
       message: 'Submission successful!',
       submissionId: submission.id.toString(),
       success: true,
     }
   } catch (error: unknown) {
-    console.error(`${logPrefix} ERROR during POST request processing:`, error)
+    console.error(`${logPrefix} ERROR during processing:`, error)
+    console.timeEnd(`${logPrefix} Total Execution Time`) // <--- END Total Timer for error path
 
     if (error instanceof z.ZodError) {
       console.error(
@@ -120,16 +120,7 @@ export async function submitContactForm(
     console.error(
       `${logPrefix} Generic Unhandled Error. Derived message: ${derivedErrorMessage}`
     )
-    if (!(error instanceof Error) && error) {
-      try {
-        console.error(
-          `${logPrefix} Raw non-Error object stringified:`,
-          JSON.stringify(error, null, 2)
-        )
-      } catch {
-        console.error(`${logPrefix} Could not stringify raw non-Error object.`)
-      }
-    }
+    // ... (rest of your generic error logging) ...
 
     return {
       message: 'An unexpected error occurred. Please try again later.',
