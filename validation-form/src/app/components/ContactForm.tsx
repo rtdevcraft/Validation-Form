@@ -289,11 +289,7 @@ export default function ContactForm() {
               }
               register={register}
               readOnly={!watchedCountry}
-              inputClassName={
-                !watchedCountry
-                  ? 'bg-gray-100 dark:bg-gray-700 opacity-70 cursor-not-allowed'
-                  : ''
-              }
+              inputClassName={!watchedCountry ? 'cursor-not-allowed' : ''}
               hasError={fieldHasError('postalCode')}
               errorMessage={getErrorMessage('postalCode')}
             />

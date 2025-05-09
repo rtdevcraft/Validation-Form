@@ -120,7 +120,6 @@ export async function submitContactForm(
     console.error(
       `${logPrefix} Generic Unhandled Error. Derived message: ${derivedErrorMessage}`
     )
-    // ... (rest of your generic error logging) ...
 
     return {
       message: 'An unexpected error occurred. Please try again later.',
