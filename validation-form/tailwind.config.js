@@ -1,4 +1,5 @@
-safelist: [
+module.exports = {
+  safelist: [
     // Colors for the "down" state (label as placeholder)
     'peer-placeholder-shown:text-black',
     'peer-placeholder-shown:text-red-500',
@@ -20,3 +21,4 @@ safelist: [
     'peer-placeholder-shown:-translate-y-1/2',
     'peer-placeholder-shown:text-base',
   ],
+}

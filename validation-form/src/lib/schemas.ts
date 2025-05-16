@@ -57,6 +57,8 @@ const baseFormSchema = z.object({
     .optional(),
 })
 
+export { baseFormSchema }
+
 export const refinedFormSchema = baseFormSchema.refine(
   (data) => {
     if (!data.country || !data.postalCode) return true // Let other validations catch missing fields

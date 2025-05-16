@@ -1,0 +1,143 @@
+'use client'
+
+import { toast } from 'react-hot-toast'
+
+import type { ContactFormData } from '../schemas'
+
+export interface FormFieldConfig {
+  id: keyof ContactFormData // Strongly typed field names
+  fieldType: 'text' | 'email' | 'tel' | 'textarea' | 'select'
+  label: string
+  placeholder?: string // Optional, FormField handles ' ' for floating label
+  type?: string // HTML input type, e.g., 'text', 'email', 'tel'
+  rows?: number // For textarea
+  options?: Array<{ value: string; label: string }> // For select
+  defaultValue?: string | number | boolean
+  className?: string // For layout control
+  validation?: {
+    // Basic validation hints for UI or simple rules
+    required?: boolean | string // string for custom message
+    minLength?: { value: number; message: string }
+    maxLength?: { value: number; message: string }
+    pattern?: { value: RegExp; message: string }
+    // More complex or conditional validation will primarily live in the Zod schema
+    // but can be hinted here for UI logic.
+  }
+  // For conditional logic like the postal code field
+  conditionalProps?: (
+    watchedValues: Record<string, unknown>
+  ) => Record<string, unknown>
+  // To provide specific props for the component
+  componentProps?: Record<string, unknown>
+}
+
+export interface FormGroupConfig {
+  id: string
+  type: 'group'
+  className?: string // For layout control
+  fields: FormFieldConfig[]
+}
+
+export type FormElementConfig = FormFieldConfig | FormGroupConfig
+
+export const contactFormConfiguration: {
+  name: string
+  fields: FormElementConfig[]
+} = {
+  name: 'Contact Us',
+  fields: [
+    {
+      id: 'name',
+      fieldType: 'text',
+      label: 'Full Name',
+      validation: { required: 'Full Name is required' },
+    },
+    {
+      id: 'email',
+      fieldType: 'email',
+      type: 'email',
+      label: 'Email Address',
+      validation: { required: 'Email Address is required' },
+    },
+    {
+      id: 'phone',
+      fieldType: 'tel',
+      type: 'tel',
+      label: 'Phone Number (e.g., +11234567890)',
+      validation: { required: 'Phone Number is required' },
+    },
+    {
+      id: 'addressGroup',
+      type: 'group',
+      className: 'grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6',
+      fields: [
+        {
+          id: 'streetAddress',
+          fieldType: 'text',
+          label: 'Street Address',
+          className: 'sm:col-span-6',
+          validation: { required: 'Street Address is required' },
+        },
+        {
+          id: 'city',
+          fieldType: 'text',
+          label: 'City',
+          className: 'sm:col-span-3',
+          validation: { required: 'City is required' },
+        },
+        {
+          id: 'stateProvince',
+          fieldType: 'text',
+          label: 'State / Province',
+          className: 'sm:col-span-3',
+          validation: { required: 'State / Province is required' },
+        },
+        {
+          id: 'country',
+          fieldType: 'select',
+          label: 'Country',
+          className: 'sm:col-span-3',
+          options: [
+            { value: 'US', label: 'United States' },
+            { value: 'CA', label: 'Canada' },
+          ],
+          validation: { required: 'Country is required' },
+          defaultValue: '',
+        },
+        {
+          id: 'postalCode',
+          fieldType: 'text',
+          label: 'Postal Code', // Default label
+          className: 'sm:col-span-3',
+          validation: { required: 'Postal Code is required' },
+          conditionalProps: (watchedValues) => {
+            const country = watchedValues.country
+            const props: Record<string, unknown> = {
+              label:
+                country === 'US'
+                  ? 'ZIP Code'
+                  : country === 'CA'
+                  ? 'Postal Code'
+                  : 'Postal Code',
+              readOnly: !country,
+              inputClassName: !country ? 'cursor-not-allowed' : '',
+            }
+            if (!country) {
+              props.onClick = () =>
+                toast.error(
+                  'Please select your country first before entering a postal code.'
+                )
+            }
+            return props
+          },
+        },
+      ],
+    },
+    {
+      id: 'message',
+      fieldType: 'textarea',
+      label: 'Message (Optional)',
+      rows: 4,
+    },
+  ],
+}

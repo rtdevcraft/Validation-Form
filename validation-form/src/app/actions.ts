@@ -32,10 +32,23 @@ export interface SubmitFormState {
   errorDetail?: string
 }
 
+// Define the innitial default state here
+export const DEFAULT_CONTACT_FORM_INITIAL_STATE: SubmitFormState = {
+  message: '',
+  success: false,
+  errors: undefined,
+  submissionId: undefined,
+}
+
 export async function submitContactForm(
-  prevState: SubmitFormState | undefined,
+  prevState: unknown,
   formData: FormData
-): Promise<SubmitFormState> {
+): Promise<{
+  message: string
+  errors?: Record<string, string[]> | undefined
+  success: boolean
+  submissionId?: string | undefined
+}> {
   const logPrefix = '[Server Action submitContactForm]'
   console.log(`${logPrefix} Action invoked.`)
   console.time(`${logPrefix} Total Execution Time`) // <--- START Total Timer
@@ -77,7 +90,6 @@ export async function submitContactForm(
     })
     console.timeEnd(`${logPrefix} Prisma Create`) // <--- END Prisma Create Timer
     console.log(
-      // You mentioned Supabase here, but your client is Prisma. Assuming Prisma is interacting with your DB (which could be hosted on Supabase).
       `${logPrefix} Submission saved to Database. ID: ${submission.id}`
     )
 
@@ -123,7 +135,6 @@ export async function submitContactForm(
 
     return {
       message: 'An unexpected error occurred. Please try again later.',
-      errorDetail: derivedErrorMessage,
       success: false,
     }
   }
