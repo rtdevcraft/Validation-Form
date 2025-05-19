@@ -103,11 +103,12 @@ export const contactFormConfiguration: {
           ],
           validation: { required: 'Country is required' },
           defaultValue: '',
+          placeholder: ' ',
         },
         {
           id: 'postalCode',
           fieldType: 'text',
-          label: 'Postal Code', // Default label
+          label: 'Postal Code',
           className: 'sm:col-span-3',
           validation: { required: 'Postal Code is required' },
           conditionalProps: (watchedValues) => {

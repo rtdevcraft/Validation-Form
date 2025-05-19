@@ -26,7 +26,7 @@ import {
 // Generic type for form data based on schema
 // type GenericFormData = z.infer<typeof clientSchema>
 
-interface DynamicFormRendererProps<T extends ZodTypeAny> {
+export interface DynamicFormRendererProps<T extends ZodTypeAny> {
   formConfig: { name: string; fields: FormElementConfig[] }
   clientSchema: T // Pass the Zod schema
   serverAction: (

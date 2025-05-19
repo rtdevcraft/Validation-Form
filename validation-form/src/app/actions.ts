@@ -1,27 +1,9 @@
 'use server'
 
+import prisma from '@/lib/prisma'
 import { PrismaClient, Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
-
-// --- Prisma Client Initialization ---
-let prisma: PrismaClient
-const prismaLogPrefix = '[Server Action Prisma]'
-
-if (process.env.NODE_ENV === 'production') {
-  prisma = new PrismaClient()
-  console.log(
-    `${prismaLogPrefix} Initialized new Prisma Client for production.`
-  )
-} else {
-  if (!global.prisma) {
-    global.prisma = new PrismaClient()
-    console.log(
-      `${prismaLogPrefix} Initialized new global Prisma Client for development.`
-    )
-  }
-  prisma = global.prisma
-}
 
 // Define a state type for the Server Action's response
 export interface SubmitFormState {

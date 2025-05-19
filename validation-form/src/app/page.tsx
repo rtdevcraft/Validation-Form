@@ -1,6 +1,6 @@
 'use client'
 
-import { DynamicFormRenderer } from './components/forms/DynamicFormRender'
+import { DynamicFormRenderer } from './components/forms/DynamicFormRenderer'
 import { refinedFormSchema as clientSchema } from '@/lib/schemas'
 import { contactFormConfiguration } from '@/lib/formConfigs/ContactFormConfig'
 import {
