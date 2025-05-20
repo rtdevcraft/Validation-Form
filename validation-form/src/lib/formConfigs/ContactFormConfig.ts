@@ -1,40 +1,30 @@
-'use client'
-
 import { toast } from 'react-hot-toast'
-
-import type { ContactFormData } from '../schemas'
+import type { ContactFormData } from '@/lib/schemas'
 
 export interface FormFieldConfig {
-  id: keyof ContactFormData // Strongly typed field names
+  id: keyof ContactFormData
   fieldType: 'text' | 'email' | 'tel' | 'textarea' | 'select'
   label: string
-  placeholder?: string // Optional, FormField handles ' ' for floating label
-  type?: string // HTML input type, e.g., 'text', 'email', 'tel'
-  rows?: number // For textarea
-  options?: Array<{ value: string; label: string }> // For select
+  placeholder?: string
+  type?: string
+  rows?: number
+  options?: Array<{ value: string; label: string }>
   defaultValue?: string | number | boolean
-  className?: string // For layout control
+  className?: string
   validation?: {
-    // Basic validation hints for UI or simple rules
-    required?: boolean | string // string for custom message
-    minLength?: { value: number; message: string }
-    maxLength?: { value: number; message: string }
-    pattern?: { value: RegExp; message: string }
-    // More complex or conditional validation will primarily live in the Zod schema
-    // but can be hinted here for UI logic.
+    required?: boolean | string
+    // ... other validation hints
   }
-  // For conditional logic like the postal code field
   conditionalProps?: (
     watchedValues: Record<string, unknown>
   ) => Record<string, unknown>
-  // To provide specific props for the component
   componentProps?: Record<string, unknown>
 }
 
 export interface FormGroupConfig {
   id: string
   type: 'group'
-  className?: string // For layout control
+  className?: string
   fields: FormFieldConfig[]
 }
 
@@ -108,7 +98,7 @@ export const contactFormConfiguration: {
         {
           id: 'postalCode',
           fieldType: 'text',
-          label: 'Postal Code',
+          label: 'Zip Code', // Default label
           className: 'sm:col-span-3',
           validation: { required: 'Postal Code is required' },
           conditionalProps: (watchedValues) => {
@@ -118,16 +108,18 @@ export const contactFormConfiguration: {
                 country === 'US'
                   ? 'ZIP Code'
                   : country === 'CA'
-                  ? 'Postal Code'
-                  : 'Postal Code',
+                  ? 'Postal Code (Canada)'
+                  : 'Postal Code (Select Country)',
               readOnly: !country,
-              inputClassName: !country ? 'cursor-not-allowed' : '',
+              inputClassName: !country ? 'bg-gray-100 cursor-not-allowed' : '',
             }
+
             if (!country) {
-              props.onClick = () =>
+              props.onClick = () => {
                 toast.error(
                   'Please select your country first before entering a postal code.'
                 )
+              }
             }
             return props
           },

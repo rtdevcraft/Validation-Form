@@ -3,10 +3,8 @@
 import { DynamicFormRenderer } from './components/forms/DynamicFormRenderer'
 import { refinedFormSchema as clientSchema } from '@/lib/schemas'
 import { contactFormConfiguration } from '@/lib/formConfigs/ContactFormConfig'
-import {
-  submitContactForm,
-  DEFAULT_CONTACT_FORM_INITIAL_STATE,
-} from './actions'
+import { submitContactForm } from './actions'
+import { DEFAULT_CONTACT_FORM_INITIAL_STATE } from '@/lib/types/forms'
 
 export default function Home() {
   return (

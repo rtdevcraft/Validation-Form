@@ -1,8 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { useEffect, useRef, useState, useCallback } from 'react'
-import { useActionState } from 'react' // Corrected import
+import { useEffect, useRef, useState, useCallback, useActionState } from 'react'
 import {
   useForm,
   FormProvider,
@@ -22,30 +21,18 @@ import {
   FormElementConfig,
   FormFieldConfig as IndividualFormFieldConfig,
   FormGroupConfig,
-} from '@/lib/formConfigs/ContactFormConfig' // Assuming this path is correct
+} from '@/lib/formConfigs/ContactFormConfig'
+import { SubmitFormState } from '@/lib/types/forms'
 
 export interface DynamicFormRendererProps<T extends ZodTypeAny> {
   formConfig: { name: string; fields: FormElementConfig[] }
   clientSchema: T
   serverAction: (
-    prevState: SubmitFormState, // Use defined SubmitFormState
+    prevState: SubmitFormState,
     formData: FormData
-  ) => Promise<SubmitFormState> // Use defined SubmitFormState
-  initialState?: SubmitFormState // Use defined SubmitFormState
-  defaultValues?: Partial<z.infer<T>> // This is correct
-}
-
-// Assuming SubmitFormState is defined elsewhere (e.g., actions.ts)
-// If not, define it here or import it. For this example, let's assume it's imported or globally available.
-// For clarity, if it's from actions.ts:
-// import type { SubmitFormState } from '@/app/actions'; // Adjust path if needed
-
-// If SubmitFormState is not imported, a basic definition:
-interface SubmitFormState {
-  message: string
-  errors?: Record<string, string[]> // More specific than generic Record
-  success: boolean
-  submissionId?: string
+  ) => Promise<SubmitFormState>
+  initialState?: SubmitFormState
+  defaultValues?: Partial<z.infer<T>>
 }
 
 export function DynamicFormRenderer<T extends ZodTypeAny>({
@@ -55,7 +42,6 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
   initialState,
   defaultValues,
 }: DynamicFormRendererProps<T>) {
-  // Ensure initialState has a default if not provided, matching useActionState's expectation
   const [state, formAction, isPendingTransition] = useActionState(
     serverAction,
     initialState || {
@@ -65,7 +51,6 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       submissionId: undefined,
     }
   )
-  // const [isPendingTransition, startTransition] = useTransition(); // useActionState provides isPending
 
   const [lastSuccessMessage, setLastSuccessMessage] = useState<string | null>(
     null
@@ -74,7 +59,7 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
   const methods = useForm<z.infer<T>>({
     resolver: zodResolver(clientSchema),
     mode: 'onChange', // Validate on change, blur, and submit
-    defaultValues: defaultValues as DefaultValues<z.infer<T>>, // Cast to DefaultValues type
+    defaultValues: defaultValues as DefaultValues<z.infer<T>>,
   })
 
   const {
@@ -116,31 +101,24 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       'RHF_HANDLE_SUBMIT: Client-side validation failed on submit attempt:',
       errors
     )
-    // Optionally, show a generic toast for client-side errors if not handled per field
-    // toast.error('Please correct the highlighted errors.');
+
+    toast.error('Please correct the highlighted errors.')
   }, [])
 
+  const countryValueForEffect = watch('country' as Path<z.infer<T>>)
+
   useEffect(() => {
-    // This effect re-evaluates conditional props and can trigger validation
-    // on dependent fields if their controlling values change.
     const fieldsToTrigger: Path<z.infer<T>>[] = []
 
     formConfig.fields.forEach((element) => {
       const processField = (field: IndividualFormFieldConfig) => {
         if (field.conditionalProps) {
-          // Determine current props based on watched values
-          //const newProps = field.conditionalProps!(watchedValues)
-          // Get existing props (if any were stored, or assume defaults)
-          // This part is tricky without storing previous conditional props.
-          // The main goal is: if a prop that affects validation (like readOnly) changes,
-          // or if a value it depends on changes, it might need re-validation.
-          // RHF's `mode: 'onChange'` + zodResolver should handle most validity updates automatically.
-          // This `trigger` is more for ensuring error messages update promptly for dependent fields.
-
-          const fieldState = getFieldState(field.id as Path<z.infer<T>>)
-          if (fieldState.isTouched || fieldState.isDirty) {
-            // Only trigger if user interacted
-            fieldsToTrigger.push(field.id as Path<z.infer<T>>)
+          // Example for postalCode:
+          if (field.id === 'postalCode') {
+            const fieldState = getFieldState('postalCode' as Path<z.infer<T>>)
+            if (fieldState.isTouched || fieldState.isDirty) {
+              fieldsToTrigger.push('postalCode' as Path<z.infer<T>>)
+            }
           }
         }
       }
@@ -148,15 +126,10 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       if (element.type === 'group' && 'fields' in element) {
         element.fields.forEach(processField)
       } else if (element.type !== 'group') {
-        // Ensure it's a field config
         processField(element as IndividualFormFieldConfig)
       }
     })
-
-    if (fieldsToTrigger.length > 0) {
-      trigger(fieldsToTrigger)
-    }
-  }, [watchedValues, getFieldState, trigger, formConfig.fields])
+  }, [countryValueForEffect, getFieldState, trigger, formConfig.fields])
 
   useEffect(() => {
     if (!state) return // state can be null initially from useActionState
@@ -176,16 +149,16 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       setLastSuccessMessage(null) // Clear any previous success message
       // Handle server-side errors
       if (state.errors) {
-        // RHF doesn't automatically set server errors. We might need to do it manually if desired,
-        // or rely on the getErrorMessage to display them.
+        // RHF doesn't automatically set server errors.
         // For now, individual field errors are handled by getErrorMessage.
         // If there's a general error message from the server AND field errors,
         // the field errors take precedence in display via FormField.
         // If only a general message (no field errors), show it.
-        if (state.message && Object.keys(state.errors).length === 0) {
+        if (
+          state.message &&
+          !(state.errors && Object.keys(state.errors).length)
+        ) {
           toast.error(state.message)
-        } else if (state.message && !Object.keys(state.errors).length) {
-          toast.error(state.message) // Fallback for general message if no field errors
         }
       } else if (state.message) {
         // No field errors, but a general error message
@@ -204,15 +177,17 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
     (
       fieldName: Path<z.infer<T>>
     ): boolean => // Use Path type
-      !!state?.errors?.[fieldName as string]?.length || // Check server errors
+      !!state?.errors?.[fieldName as keyof NonNullable<typeof state.errors>]
+        ?.length || // Check server errors
       !!clientSideErrors[fieldName], // Check RHF client-side errors
-    [state?.errors, clientSideErrors]
+    [clientSideErrors, state]
   )
 
   const getErrorMessage = useCallback(
     (fieldName: Path<z.infer<T>>): string | undefined => {
       // Use Path type
-      const serverErrorArray = state?.errors?.[fieldName as string]
+      const serverErrorArray =
+        state?.errors?.[fieldName as keyof NonNullable<typeof state.errors>]
       if (serverErrorArray?.length) {
         return serverErrorArray.join(', ')
       }
@@ -222,7 +197,7 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       }
       return undefined
     },
-    [state?.errors, clientSideErrors]
+    [clientSideErrors, state]
   )
 
   const renderField = (fieldConfig: IndividualFormFieldConfig) => {
@@ -237,8 +212,8 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
       hasError: fieldHasError(fieldName),
       errorMessage: getErrorMessage(fieldName),
       placeholder: fieldConfig.placeholder,
-      ...currentConditionalProps, // Apply conditional props
-      ...(fieldConfig.componentProps || {}), // Apply other static component props
+      ...currentConditionalProps,
+      ...(fieldConfig.componentProps || {}),
     }
 
     // Ensure register is correctly typed for RHF
@@ -256,11 +231,11 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
               <FloatingLabelSelect
                 {...commonProps} // Common props first
                 options={fieldConfig.options || []}
-                value={(field.value as string | undefined | null) ?? ''} // Ensure value is controlled
+                value={(field.value as string | undefined | null) ?? ''}
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 placeholder={
-                  commonProps.placeholder || // From conditional/component props
+                  commonProps.placeholder ||
                   fieldConfig.placeholder ||
                   `Select ${fieldConfig.label.toLowerCase()}`
                 }
@@ -271,7 +246,7 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
                 }
                 // Pass through other commonProps again in case controller needs them
                 // or they were overridden by conditionalProps
-                label={commonProps.label} // Ensure label from commonProps is used
+                label={commonProps.label}
               />
             )}
           />
@@ -340,7 +315,7 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
         {state &&
           !state.success &&
           state.message &&
-          !state.errors?.length && ( // Only show if no field-specific errors
+          (!state.errors || Object.keys(state.errors).length === 0) && ( // Only show if no field-specific errors
             <div
               className='p-4 mb-6 text-sm text-red-700 bg-red-100 border border-red-300 rounded-lg'
               role='alert'
@@ -358,7 +333,7 @@ export function DynamicFormRenderer<T extends ZodTypeAny>({
           {renderElements(formConfig.fields)}
           <FormSubmitButton
             isFormValid={isValid}
-            isSubmitting={isPendingTransition} // from useActionState
+            isSubmitting={isPendingTransition}
           />
         </form>
       </div>

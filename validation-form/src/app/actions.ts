@@ -4,23 +4,7 @@ import prisma from '@/lib/prisma'
 import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
-
-// Define a state type for the Server Action's response
-export interface SubmitFormState {
-  message: string
-  errors?: Partial<Record<keyof z.infer<typeof refinedFormSchema>, string[]>>
-  submissionId?: string
-  success: boolean
-  errorDetail?: string // This was in your original interface, ensure it's used if needed
-}
-
-// Define the initial default state here
-export const DEFAULT_CONTACT_FORM_INITIAL_STATE: SubmitFormState = {
-  message: '',
-  success: false,
-  errors: undefined,
-  submissionId: undefined,
-}
+import { SubmitFormState } from '@/lib/types/forms'
 
 export async function submitContactForm(
   prevState: unknown,

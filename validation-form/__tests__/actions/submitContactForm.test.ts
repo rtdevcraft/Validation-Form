@@ -1,8 +1,7 @@
-// __tests__/actions/submitContactForm.test.ts
 import { Prisma as RealPrismaNamespace } from '@prisma/client'
 import { jest } from '@jest/globals'
+import { DEFAULT_CONTACT_FORM_INITIAL_STATE } from '@/lib/types/forms'
 
-// This MUST be defined before jest.mock if the factory closes over it.
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
 
@@ -24,9 +23,6 @@ jest.mock('@/lib/prisma', () => {
     },
   }
 })
-
-// DO NOT import submitContactForm or DEFAULT_CONTACT_FORM_INITIAL_STATE here at the top level.
-// We will import them dynamically inside describe or beforeEach.
 
 const createFormData = (data: Record<string, string | undefined>): FormData => {
   const formData = new FormData()
@@ -69,22 +65,15 @@ interface ContactSubmissionReturnType {
 
 describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
   let submitContactFormActual: typeof import('@/app/actions').submitContactForm
-  let DEFAULT_CONTACT_FORM_INITIAL_STATE_ACTUAL: typeof import('@/app/actions').DEFAULT_CONTACT_FORM_INITIAL_STATE
 
   beforeEach(async () => {
     // Clear the mock before each test
     mockCreateDatabaseFn.mockClear()
 
-    // Dynamically import the action. This ensures it's imported *after*
-    // jest.mock('@/lib/prisma') has been processed and is in effect.
-    // We also need to reset modules to ensure a fresh import if multiple tests modify mocks.
     jest.resetModules()
     const actionsModule = await import('@/app/actions')
     submitContactFormActual = actionsModule.submitContactForm
-    DEFAULT_CONTACT_FORM_INITIAL_STATE_ACTUAL =
-      actionsModule.DEFAULT_CONTACT_FORM_INITIAL_STATE
 
-    // VERIFY MOCK: Ensure the lib/prisma mock is still seen correctly after resetModules + dynamic import
     const mockedPrismaDefault = (
       jest.requireMock('@/lib/prisma') as {
         default: { contactSubmission: { create: jest.Mock } }
@@ -108,7 +97,7 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     const formData = createFormData(validRawData)
     const result = await submitContactFormActual(
       // Use the dynamically imported action
-      DEFAULT_CONTACT_FORM_INITIAL_STATE_ACTUAL,
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
 
@@ -162,7 +151,7 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     const formData = createFormData(validRawData)
     const result = await submitContactFormActual(
       // Use the dynamically imported action
-      DEFAULT_CONTACT_FORM_INITIAL_STATE_ACTUAL,
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
 
@@ -183,7 +172,7 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
 
     const result = await submitContactFormActual(
       // Use the dynamically imported action
-      DEFAULT_CONTACT_FORM_INITIAL_STATE_ACTUAL,
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
 
