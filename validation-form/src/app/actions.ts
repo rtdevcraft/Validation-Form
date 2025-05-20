@@ -1,7 +1,7 @@
 'use server'
 
 import prisma from '@/lib/prisma'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
 
@@ -11,10 +11,10 @@ export interface SubmitFormState {
   errors?: Partial<Record<keyof z.infer<typeof refinedFormSchema>, string[]>>
   submissionId?: string
   success: boolean
-  errorDetail?: string
+  errorDetail?: string // This was in your original interface, ensure it's used if needed
 }
 
-// Define the innitial default state here
+// Define the initial default state here
 export const DEFAULT_CONTACT_FORM_INITIAL_STATE: SubmitFormState = {
   message: '',
   success: false,
@@ -30,33 +30,27 @@ export async function submitContactForm(
   errors?: Record<string, string[]> | undefined
   success: boolean
   submissionId?: string | undefined
+  // Consider if errorDetail should be part of this return type if used in catch blocks
 }> {
-  const logPrefix = '[Server Action submitContactForm]'
-  console.log(`${logPrefix} Action invoked.`)
-  console.time(`${logPrefix} Total Execution Time`) // <--- START Total Timer
+  const logPrefix = '[Server Action submitContactForm]' // Re-added for logging context
 
   const rawData: { [key: string]: string } = {}
-  console.time(`${logPrefix} FormData Processing`) // <--- START FormData Processing Timer
+
   for (const [key, value] of formData.entries()) {
     if (typeof value === 'string') {
       rawData[key] = value
     } else {
+      // Log a warning for non-string form data values, as this can affect validation
       console.warn(
         `${logPrefix} Value for key "${key}" from FormData was not a string (it was type: ${typeof value}). ` +
           `It will be treated as missing by Zod if the field is required, or undefined if optional.`
       )
     }
   }
-  console.timeEnd(`${logPrefix} FormData Processing`) // <--- END FormData Processing Timer
-  console.log(`${logPrefix} Raw data prepared for Zod validation:`, rawData)
 
   try {
-    console.time(`${logPrefix} Zod Validation`) // <--- START Zod Validation Timer
     const validatedData = refinedFormSchema.parse(rawData)
-    console.timeEnd(`${logPrefix} Zod Validation`) // <--- END Zod Validation Timer
-    console.log(`${logPrefix} Data validated successfully by Zod.`)
 
-    console.time(`${logPrefix} Prisma Create`) // <--- START Prisma Create Timer
     const submission = await prisma.contactSubmission.create({
       data: {
         name: validatedData.name,
@@ -70,22 +64,18 @@ export async function submitContactForm(
         message: validatedData.message,
       },
     })
-    console.timeEnd(`${logPrefix} Prisma Create`) // <--- END Prisma Create Timer
-    console.log(
-      `${logPrefix} Submission saved to Database. ID: ${submission.id}`
-    )
 
-    console.timeEnd(`${logPrefix} Total Execution Time`) // <--- END Total Timer for success path
     return {
       message: 'Submission successful!',
       submissionId: submission.id.toString(),
       success: true,
     }
   } catch (error: unknown) {
+    // Log the overarching error first
     console.error(`${logPrefix} ERROR during processing:`, error)
-    console.timeEnd(`${logPrefix} Total Execution Time`) // <--- END Total Timer for error path
 
     if (error instanceof z.ZodError) {
+      // Log Zod validation error details for server-side debugging
       console.error(
         `${logPrefix} Zod Validation Error details:`,
         error.flatten().fieldErrors
@@ -97,27 +87,62 @@ export async function submitContactForm(
       }
     }
 
-    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    let isEssentiallyPrismaKnownError = false
+    try {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        isEssentiallyPrismaKnownError = true
+      }
+    } catch (instanceofError) {
+      // Log if the instanceof check itself fails (e.g., environment issues)
+      console.warn(
+        `${logPrefix} instanceof Prisma.PrismaClientKnownRequestError failed:`,
+        instanceofError
+      )
+    }
+
+    if (
+      !isEssentiallyPrismaKnownError &&
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      'clientVersion' in error
+    ) {
+      isEssentiallyPrismaKnownError = true
+    }
+
+    if (isEssentiallyPrismaKnownError) {
+      const knownError = error as Prisma.PrismaClientKnownRequestError
+      // Log Prisma error details for server-side debugging
       console.error(
-        `${logPrefix} Prisma Error Code: ${error.code}. Message: ${error.message}`
+        `${logPrefix} Prisma Error Code: ${knownError.code}. Message: ${
+          knownError.message || '(No message property)'
+        }`
       )
       return {
         message: 'Database error occurred. Could not save submission.',
         success: false,
+
+        // errorDetail: `Prisma Error Code: ${knownError.code}`
       }
     }
 
+    // Generic fallback for any other type of error
     const derivedErrorMessage =
       error instanceof Error
         ? error.message
-        : 'An unexpected server error occurred.'
+        : 'An unexpected server error occurred, and the error type is unknown.'
+
+    // Log the generic error details for server-side debugging
     console.error(
-      `${logPrefix} Generic Unhandled Error. Derived message: ${derivedErrorMessage}`
+      `${logPrefix} Generic Unhandled Error. Original Error:`,
+      error,
+      `Derived message: ${derivedErrorMessage}`
     )
 
     return {
       message: 'An unexpected error occurred. Please try again later.',
       success: false,
+      // errorDetail: derivedErrorMessage // Optionally provide more detail
     }
   }
 }
