@@ -1,40 +1,26 @@
+// src/app/actions.ts
 'use server'
 
 import prisma from '@/lib/prisma'
-import { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client' // Ensure Prisma is imported for type checking
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
-import { SubmitFormState } from '@/lib/types/forms'
+import type { SubmitFormState } from '@/lib/types/forms'
 
 export async function submitContactForm(
-  prevState: unknown,
+  prevState: SubmitFormState, // Or unknown, if you prefer for initial state
   formData: FormData
-): Promise<{
-  message: string
-  errors?: Record<string, string[]> | undefined
-  success: boolean
-  submissionId?: string | undefined
-  // Consider if errorDetail should be part of this return type if used in catch blocks
-}> {
-  const logPrefix = '[Server Action submitContactForm]' // Re-added for logging context
-
-  const rawData: { [key: string]: string } = {}
-
+): Promise<SubmitFormState> {
+  const rawData: { [key: string]: unknown } = {}
   for (const [key, value] of formData.entries()) {
-    if (typeof value === 'string') {
-      rawData[key] = value
-    } else {
-      // Log a warning for non-string form data values, as this can affect validation
-      console.warn(
-        `${logPrefix} Value for key "${key}" from FormData was not a string (it was type: ${typeof value}). ` +
-          `It will be treated as missing by Zod if the field is required, or undefined if optional.`
-      )
-    }
+    rawData[key] = value
   }
 
   try {
+    // 1. Validate data
     const validatedData = refinedFormSchema.parse(rawData)
 
+    // 2. Perform database operation
     const submission = await prisma.contactSubmission.create({
       data: {
         name: validatedData.name,
@@ -51,19 +37,15 @@ export async function submitContactForm(
 
     return {
       message: 'Submission successful!',
-      submissionId: submission.id.toString(),
+      submissionId: submission.id.toString(), // Ensure ID is converted to string if necessary
       success: true,
+      errors: undefined,
     }
   } catch (error: unknown) {
-    // Log the overarching error first
-    console.error(`${logPrefix} ERROR during processing:`, error)
+    // --- Main Error Handling Block ---
 
+    // A. Handle Zod Validation Errors
     if (error instanceof z.ZodError) {
-      // Log Zod validation error details for server-side debugging
-      console.error(
-        `${logPrefix} Zod Validation Error details:`,
-        error.flatten().fieldErrors
-      )
       return {
         message: 'Validation failed. Please check the highlighted fields.',
         errors: error.flatten().fieldErrors as SubmitFormState['errors'],
@@ -71,62 +53,67 @@ export async function submitContactForm(
       }
     }
 
+    // B. Handle Prisma Errors (and other potential database errors)
     let isEssentiallyPrismaKnownError = false
+
+    // B.1. Attempt instanceof check for PrismaClientKnownRequestError defensively
     try {
-      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (
+        Prisma && // Check if Prisma namespace itself is defined
+        typeof Prisma.PrismaClientKnownRequestError === 'function' && // Check if the constructor is a function
+        error instanceof Prisma.PrismaClientKnownRequestError
+      ) {
         isEssentiallyPrismaKnownError = true
       }
-    } catch (instanceofError) {
-      // Log if the instanceof check itself fails (e.g., environment issues)
-      console.warn(
-        `${logPrefix} instanceof Prisma.PrismaClientKnownRequestError failed:`,
-        instanceofError
-      )
+    } catch (_instanceofCheckError) {
+      // This catch is specifically for TypeErrors or other issues
+      // if the 'instanceof' check itself fails (common in test environments).
+      // We can log this for server-side debugging if needed, but avoid crashing.
+      // console.warn('[submitContactForm] The `instanceof Prisma.PrismaClientKnownRequestError` check itself caused an error:', _instanceofCheckError);
+      // Continue to duck-typing
     }
 
+    // B.2. Duck-typing as a fallback or primary check if instanceof is unreliable
     if (
       !isEssentiallyPrismaKnownError &&
       typeof error === 'object' &&
       error !== null &&
-      'code' in error &&
-      'clientVersion' in error
+      'code' in error && // Prisma errors have a 'code'
+      'clientVersion' in error && // Prisma errors usually have a 'clientVersion'
+      ('message' in error || 'meta' in error) // And a message or meta object
+      // Optionally, check for name if it's consistently present on your mocked errors too:
+      // && (error as { name?: string }).name === 'PrismaClientKnownRequestError'
     ) {
       isEssentiallyPrismaKnownError = true
     }
 
     if (isEssentiallyPrismaKnownError) {
-      const knownError = error as Prisma.PrismaClientKnownRequestError
-      // Log Prisma error details for server-side debugging
-      console.error(
-        `${logPrefix} Prisma Error Code: ${knownError.code}. Message: ${
-          knownError.message || '(No message property)'
-        }`
-      )
+      // const knownError = error as Prisma.PrismaClientKnownRequestError; // For typed access if needed
+      // You might log specific details of knownError to a dedicated logging service here.
+      // e.g., logErrorToService('PrismaKnownError', { code: knownError.code, meta: knownError.meta });
       return {
         message: 'Database error occurred. Could not save submission.',
         success: false,
-
-        // errorDetail: `Prisma Error Code: ${knownError.code}`
+        errors: undefined, // No specific field errors for this general DB error by default
+        // errorDetail: `Code: ${knownError.code}` // Be cautious about exposing error codes
       }
     }
 
-    // Generic fallback for any other type of error
-    const derivedErrorMessage =
-      error instanceof Error
-        ? error.message
-        : 'An unexpected server error occurred, and the error type is unknown.'
-
-    // Log the generic error details for server-side debugging
-    console.error(
-      `${logPrefix} Generic Unhandled Error. Original Error:`,
-      error,
-      `Derived message: ${derivedErrorMessage}`
-    )
+    // C. Handle other generic errors
+    // Log the full error to your server logs or an error tracking service for investigation
+    // console.error('[submitContactForm] An unexpected error occurred:', error);
+    const errorMessage =
+      'An unexpected server error occurred. Please try again later.'
+    if (error instanceof Error && error.message) {
+      // You might choose to use error.message if it's deemed safe and informative,
+      // but often a generic message is better for the client.
+      // errorMessage = error.message; // Use with caution
+    }
 
     return {
-      message: 'An unexpected error occurred. Please try again later.',
+      message: errorMessage,
       success: false,
-      // errorDetail: derivedErrorMessage // Optionally provide more detail
+      errors: undefined,
     }
   }
 }

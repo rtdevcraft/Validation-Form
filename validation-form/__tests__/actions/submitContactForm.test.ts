@@ -1,9 +1,23 @@
-import { Prisma as RealPrismaNamespace } from '@prisma/client'
 import { jest } from '@jest/globals'
 import { DEFAULT_CONTACT_FORM_INITIAL_STATE } from '@/lib/types/forms'
-
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
+// import type { SubmitFormState } from '@/lib/types/forms';
+
+// Define the return type for the mocked database call
+interface ContactSubmissionReturnType {
+  id: bigint
+  name: string
+  email: string
+  phone: string
+  streetAddress: string
+  city: string
+  stateProvince: string
+  country: string
+  postalCode: string
+  message: string | null
+  createdAt: Date
+}
 
 const mockCreateDatabaseFn =
   jest.fn<
@@ -13,7 +27,6 @@ const mockCreateDatabaseFn =
   >()
 
 jest.mock('@/lib/prisma', () => {
-  console.log('MOCKING @/lib/prisma (Attempt 5 - with dynamic action import)')
   return {
     __esModule: true,
     default: {
@@ -49,31 +62,17 @@ const validRawData = {
   message: 'Hello server action',
 }
 
-interface ContactSubmissionReturnType {
-  id: bigint
-  name: string
-  email: string
-  phone: string
-  streetAddress: string
-  city: string
-  stateProvince: string
-  country: string
-  postalCode: string
-  message: string | null
-  createdAt: Date
-}
-
 describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
   let submitContactFormActual: typeof import('@/app/actions').submitContactForm
 
   beforeEach(async () => {
-    // Clear the mock before each test
     mockCreateDatabaseFn.mockClear()
+    jest.resetModules() // Important for re-importing the action with fresh mocks
 
-    jest.resetModules()
     const actionsModule = await import('@/app/actions')
     submitContactFormActual = actionsModule.submitContactForm
 
+    // Verify the mock is correctly applied (optional, can be removed if confident)
     const mockedPrismaDefault = (
       jest.requireMock('@/lib/prisma') as {
         default: { contactSubmission: { create: jest.Mock } }
@@ -82,7 +81,6 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     expect(mockedPrismaDefault.contactSubmission.create).toBe(
       mockCreateDatabaseFn
     )
-    console.log('VERIFY MOCK (v5 in beforeEach) passed.')
   })
 
   it('should successfully process and save valid data', async () => {
@@ -96,7 +94,6 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
 
     const formData = createFormData(validRawData)
     const result = await submitContactFormActual(
-      // Use the dynamically imported action
       DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
@@ -122,44 +119,24 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
   })
 
   it('should handle PrismaClientKnownRequestError when create rejects', async () => {
-    let prismaError
-    try {
-      prismaError = new RealPrismaNamespace.PrismaClientKnownRequestError(
-        'Mocked P2002 Error',
-        {
-          code: 'P2002',
-          clientVersion: 'test-client-version-v5',
-          meta: { target: ['email'] },
-        }
-      )
-    } catch (e: unknown) {
-      console.error(
-        'Error constructing RealPrismaNamespace.PrismaClientKnownRequestError (v5):',
-        e instanceof Error ? e.message : String(e)
-      )
-      prismaError = {
-        // Fallback
-        name: 'PrismaClientKnownRequestError',
-        code: 'P2002',
-        clientVersion: 'test-client-version-v5-fallback',
-        meta: { target: ['email'] },
-        message: 'Mocked P2002 Error (fallback object)',
-      }
+    const prismaError = {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+      clientVersion: 'test-client-version-in-test',
+      meta: { target: ['email'] },
+      message: 'Mocked P2002 Error (simulated for test)',
     }
     mockCreateDatabaseFn.mockRejectedValue(prismaError)
 
     const formData = createFormData(validRawData)
     const result = await submitContactFormActual(
-      // Use the dynamically imported action
       DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
 
     expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
     expect(result.success).toBe(false)
-    // This part needs your actions.ts to correctly identify the error.
-    // If the RealPrismaNamespace.PrismaClientKnownRequestError constructor still fails,
-    // and you rely on the fallback, actions.ts must handle errors by checking properties like 'code'.
+    // This relies on your action's duck-typing or instanceof check (if it were to work with a more complex mock)
     expect(result.message).toBe(
       'Database error occurred. Could not save submission.'
     )
@@ -171,7 +148,6 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     const formData = createFormData(invalidData)
 
     const result = await submitContactFormActual(
-      // Use the dynamically imported action
       DEFAULT_CONTACT_FORM_INITIAL_STATE,
       formData
     )
@@ -179,5 +155,70 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     expect(result.success).toBe(false)
     expect(result.errors?.email).toBeDefined()
     expect(mockCreateDatabaseFn).not.toHaveBeenCalled()
+  })
+
+  // Add more tests as needed, for example, for other Prisma error codes if handled differently,
+  // or for generic errors.
+  it('should handle a generic error when create rejects with an unknown error', async () => {
+    const genericError = new Error('Something unexpected went wrong')
+    mockCreateDatabaseFn.mockRejectedValue(genericError)
+
+    const formData = createFormData(validRawData)
+    const result = await submitContactFormActual(
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
+      formData
+    )
+
+    expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'An unexpected server error occurred. Please try again later.'
+    )
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('should handle PrismaClientKnownRequestError when create rejects', async () => {
+    const prismaErrorObject = {
+      // Use a plain object for the mock error
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+      clientVersion: 'test-client-version-in-test',
+      meta: { target: ['email'] },
+      message: 'Mocked P2002 Error (simulated for test)',
+    }
+    mockCreateDatabaseFn.mockRejectedValue(prismaErrorObject)
+
+    const formData = createFormData(validRawData)
+    // The action should internally handle the instanceof TypeError and proceed
+    const result = await submitContactFormActual(
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
+      formData
+    )
+
+    expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Database error occurred. Could not save submission.'
+    )
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('should handle a generic error when create rejects with an unknown error', async () => {
+    const genericError = new Error('Something unexpected went wrong')
+    mockCreateDatabaseFn.mockRejectedValue(genericError)
+
+    const formData = createFormData(validRawData)
+    const result = await submitContactFormActual(
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
+      formData
+    )
+
+    expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
+    expect(result.success).toBe(false)
+    // This was the message your action was returning based on previous logs
+    expect(result.message).toBe(
+      'An unexpected server error occurred. Please try again later.'
+    )
+    expect(result.errors).toBeUndefined()
   })
 })
