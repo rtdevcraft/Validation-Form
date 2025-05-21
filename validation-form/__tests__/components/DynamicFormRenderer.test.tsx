@@ -22,14 +22,11 @@ import {
 
 // ---- MOCKS ----
 
-// CORRECTED react-hot-toast mock:
-// The factory function creates the jest.fn() instances directly.
 jest.mock('react-hot-toast', () => ({
-  __esModule: true, // Good practice for ES modules
+  __esModule: true,
   default: {
-    // This mocks the default export
-    success: jest.fn(), // Create new mock function here
-    error: jest.fn(), // Create new mock function here
+    success: jest.fn(),
+    error: jest.fn(),
   },
 }))
 
@@ -167,7 +164,6 @@ describe('DynamicFormRenderer', () => {
   let mockProps: DynamicFormRendererProps<typeof BaseTestSchema>
 
   beforeEach(() => {
-    // jest.clearAllMocks() will clear the imported toast's methods because they are jest.fn()
     jest.clearAllMocks()
     mockProps = getMockProps()
   })
@@ -220,7 +216,6 @@ describe('DynamicFormRenderer', () => {
     })
 
     await waitFor(() => {
-      // Assert against the imported 'toast' which is now your mock
       expect(toast.success).toHaveBeenCalledWith(
         'Form submitted! (Ref ID: test-123)'
       )

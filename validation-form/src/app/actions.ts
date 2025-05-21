@@ -1,14 +1,13 @@
-// src/app/actions.ts
 'use server'
 
 import prisma from '@/lib/prisma'
-import { Prisma } from '@prisma/client' // Ensure Prisma is imported for type checking
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { refinedFormSchema } from '@/lib/schemas'
 import type { SubmitFormState } from '@/lib/types/forms'
 
 export async function submitContactForm(
-  prevState: SubmitFormState, // Or unknown, if you prefer for initial state
+  prevState: SubmitFormState,
   formData: FormData
 ): Promise<SubmitFormState> {
   const rawData: { [key: string]: unknown } = {}
@@ -65,7 +64,7 @@ export async function submitContactForm(
       ) {
         isEssentiallyPrismaKnownError = true
       }
-    } catch (_instanceofCheckError) {
+    } catch {
       // This catch is specifically for TypeErrors or other issues
       // if the 'instanceof' check itself fails (common in test environments).
       // We can log this for server-side debugging if needed, but avoid crashing.
@@ -101,7 +100,7 @@ export async function submitContactForm(
 
     // C. Handle other generic errors
     // Log the full error to your server logs or an error tracking service for investigation
-    // console.error('[submitContactForm] An unexpected error occurred:', error);
+    console.error('[submitContactForm] An unexpected error occurred:', error)
     const errorMessage =
       'An unexpected server error occurred. Please try again later.'
     if (error instanceof Error && error.message) {

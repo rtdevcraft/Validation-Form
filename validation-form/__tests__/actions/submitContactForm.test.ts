@@ -72,7 +72,7 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     const actionsModule = await import('@/app/actions')
     submitContactFormActual = actionsModule.submitContactForm
 
-    // Verify the mock is correctly applied (optional, can be removed if confident)
+    // Verify the mock is correctly applied
     const mockedPrismaDefault = (
       jest.requireMock('@/lib/prisma') as {
         default: { contactSubmission: { create: jest.Mock } }
@@ -136,7 +136,7 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
 
     expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
     expect(result.success).toBe(false)
-    // This relies on your action's duck-typing or instanceof check (if it were to work with a more complex mock)
+
     expect(result.message).toBe(
       'Database error occurred. Could not save submission.'
     )
