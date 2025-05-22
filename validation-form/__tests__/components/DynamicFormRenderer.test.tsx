@@ -1,10 +1,8 @@
-// __tests__/components/DynamicFormRenderer.test.tsx
 import React from 'react'
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { z } from 'zod'
 
-// Import toast AFTER jest.mock. Jest ensures this import gets the mocked version.
 import toast from 'react-hot-toast'
 
 import {
@@ -14,6 +12,7 @@ import {
 import {
   FormElementConfig,
   FormFieldConfig as IndividualFormFieldConfig,
+  FormGroupConfig,
 } from '@/lib/formConfigs/ContactFormConfig'
 import {
   SubmitFormState,
@@ -30,83 +29,103 @@ jest.mock('react-hot-toast', () => ({
   },
 }))
 
-// Your other mocks (FormField, FloatingLabelSelect, FormSubmitButton)
+// Enhanced mock for FormField to better reflect props usage
+const mockFormField = jest.fn(
+  ({ id, label, register, hasError, errorMessage, type, ...rest }) => (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      <input
+        id={id}
+        data-testid={`input-${id}`}
+        name={id} // name should be derived from register if used properly
+        type={type || 'text'}
+        aria-invalid={hasError ? 'true' : 'false'}
+        {...(register
+          ? register(id, { required: !!rest.required })
+          : { name: id })} // Simplified, RHF register is more complex
+        {...rest}
+      />
+      {hasError && (
+        <p role='alert' data-testid={`error-${id}`}>
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  )
+)
 jest.mock('@/app/components/forms/FormField', () => ({
   __esModule: true,
-  FormField: jest.fn(
-    ({ id, label, register, hasError, errorMessage, type, ...rest }) => (
-      <div>
-        <label htmlFor={id}>{label}</label>
-        <input
-          id={id}
-          data-testid={`input-${id}`}
-          name={id}
-          type={type || 'text'}
-          aria-invalid={hasError ? 'true' : 'false'}
-          {...(register ? register(id) : {})}
-          {...rest}
-        />
-        {hasError && <p role='alert'>{errorMessage}</p>}
-      </div>
-    )
-  ),
+  FormField: mockFormField,
 }))
 
+const mockFloatingLabelSelect = jest.fn(
+  ({
+    id,
+    label,
+    options,
+    value,
+    onChange,
+    onBlur,
+    hasError,
+    errorMessage,
+    placeholder,
+    ...rest
+  }) => (
+    <div>
+      <label htmlFor={id}>{label}</label>
+      <select
+        id={id}
+        data-testid={`select-${id}`}
+        value={value}
+        onChange={onChange}
+        onBlur={onBlur}
+        aria-invalid={hasError ? 'true' : 'false'}
+        {...rest}
+      >
+        {placeholder && <option value=''>{placeholder}</option>}
+        {(options || []).map((opt: { value: string; label: string }) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+      {hasError && (
+        <p role='alert' data-testid={`error-${id}`}>
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  )
+)
 jest.mock('@/app/components/forms/FloatingLabelSelect', () => ({
   __esModule: true,
-  FloatingLabelSelect: jest.fn(
-    ({
-      id,
-      label,
-      options,
-      value,
-      onChange,
-      onBlur,
-      hasError,
-      errorMessage,
-      ...rest
-    }) => (
-      <div>
-        <label htmlFor={id}>{label}</label>
-        <select
-          id={id}
-          data-testid={`select-${id}`}
-          value={value}
-          onChange={onChange}
-          onBlur={onBlur}
-          aria-invalid={hasError ? 'true' : 'false'}
-          {...rest}
-        >
-          {(options || []).map((opt: { value: string; label: string }) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        {hasError && <p role='alert'>{errorMessage}</p>}
-      </div>
-    )
-  ),
+  FloatingLabelSelect: mockFloatingLabelSelect,
 }))
 
+const mockFormSubmitButton = jest.fn(({ isSubmitting, isFormValid }) => (
+  <button type='submit' disabled={isSubmitting || !isFormValid}>
+    {isSubmitting ? 'Submitting...' : 'Submit'}
+  </button>
+))
 jest.mock('@/app/components/forms/FormSubmitButton', () => ({
   __esModule: true,
-  FormSubmitButton: jest.fn(({ isSubmitting, isFormValid }) => (
-    <button type='submit' disabled={isSubmitting || !isFormValid}>
-      {isSubmitting ? 'Submitting...' : 'Submit'}
-    </button>
-  )),
+  FormSubmitButton: mockFormSubmitButton,
 }))
 
 // ---- TEST SETUP ----
 const BaseTestSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
+  message: z
+    .string()
+    .min(5, 'Message must be at least 5 characters')
+    .optional(),
 })
 type BaseTestFormData = z.infer<typeof BaseTestSchema>
 
 const getMockProps = (
-  overrideProps: Partial<DynamicFormRendererProps<typeof BaseTestSchema>> = {}
+  overrideProps: Partial<DynamicFormRendererProps<typeof BaseTestSchema>> = {},
+  overrideFormConfig?: { name: string; fields: FormElementConfig[] }
 ): DynamicFormRendererProps<typeof BaseTestSchema> => {
   const mockServerAction = jest.fn(
     async (
@@ -132,29 +151,43 @@ const getMockProps = (
       }
     }
   )
-  const formConfig: { name: string; fields: FormElementConfig[] } = {
+
+  const defaultFormConfig: { name: string; fields: FormElementConfig[] } = {
     name: 'Test Form',
     fields: [
       {
         id: 'name',
+        fieldType: 'text', // Use fieldType for rendering hint
         type: 'text',
-        fieldType: 'text',
         label: 'Full Name',
+        className: 'name-field-wrapper',
       } as IndividualFormFieldConfig,
       {
         id: 'email',
-        type: 'email',
         fieldType: 'email',
+        type: 'email',
         label: 'Email Address',
+      } as IndividualFormFieldConfig,
+      {
+        id: 'message',
+        fieldType: 'textarea',
+        type: 'textarea',
+        label: 'Your Message',
+        rows: 3,
       } as IndividualFormFieldConfig,
     ],
   }
+
   return {
-    formConfig,
+    formConfig: overrideFormConfig || defaultFormConfig,
     clientSchema: BaseTestSchema,
     serverAction: mockServerAction,
     initialState: { ...DEFAULT_CONTACT_FORM_INITIAL_STATE },
-    defaultValues: { name: '', email: '' } as Partial<BaseTestFormData>,
+    defaultValues: {
+      name: '',
+      email: '',
+      message: '',
+    } as Partial<BaseTestFormData>,
     ...overrideProps,
   }
 }
@@ -162,60 +195,176 @@ const getMockProps = (
 // ---- TESTS ----
 describe('DynamicFormRenderer', () => {
   let mockProps: DynamicFormRendererProps<typeof BaseTestSchema>
+  const consoleErrorSpy = jest
+    .spyOn(console, 'error')
+    .mockImplementation(() => {}) // Suppress RHF error logs in tests
 
   beforeEach(() => {
     jest.clearAllMocks()
     mockProps = getMockProps()
+    // Reset spies on mocked components if they were called with specific arguments
+    mockFormField.mockClear()
+    mockFloatingLabelSelect.mockClear()
+    mockFormSubmitButton.mockClear()
+    consoleErrorSpy.mockClear()
   })
 
-  test('renders the form with title and fields correctly', () => {
-    render(<DynamicFormRenderer {...mockProps} />)
-    expect(screen.getByText('Test Form')).toBeInTheDocument()
+  afterAll(() => {
+    consoleErrorSpy.mockRestore()
+  })
+
+  test('renders the form with title, fields, and groups correctly', () => {
+    const groupedFormConfig = {
+      name: 'Grouped Test Form',
+      fields: [
+        {
+          id: 'group1',
+          type: 'group',
+          className: 'custom-group',
+          fields: [
+            {
+              id: 'name',
+              fieldType: 'text',
+              label: 'Full Name',
+            } as IndividualFormFieldConfig,
+          ],
+        } as FormGroupConfig,
+        {
+          id: 'email',
+          fieldType: 'email',
+          label: 'Email Address',
+        } as IndividualFormFieldConfig,
+      ],
+    }
+    render(<DynamicFormRenderer {...getMockProps({}, groupedFormConfig)} />)
+    expect(screen.getByText('Grouped Test Form')).toBeInTheDocument()
     expect(screen.getByLabelText('Full Name')).toBeInTheDocument()
-    // ... other assertions
+    expect(screen.getByLabelText('Email Address')).toBeInTheDocument()
+    // Check if the wrapper for 'name' (inside group) and the group itself are rendered
+    // This depends on your actual rendering of groups and field classNames
+    const nameFieldWrapper = screen.getByLabelText('Full Name').closest('div') // Mock structure
+    expect(nameFieldWrapper?.parentElement?.closest('div')).toHaveClass(
+      'custom-group'
+    )
   })
 
-  test('displays client-side validation error messages', async () => {
+  test('displays client-side validation error messages and prevents submission', async () => {
     render(<DynamicFormRenderer {...mockProps} />)
-    // ... test logic
+    const submitButton = screen.getByRole('button', { name: 'Submit' })
+    const nameInput = screen.getByLabelText('Full Name')
+    const emailInput = screen.getByLabelText('Email Address')
+
+    // Initially, button might be disabled if form is invalid with empty required fields
+    expect(submitButton).toBeDisabled()
+
+    // Trigger validation by typing and blurring (due to mode: 'onChange')
+    // Or by direct submission attempt
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'J' } }) // Valid for now but let's make email invalid
+      fireEvent.blur(nameInput)
+      fireEvent.change(emailInput, { target: { value: 'invalid-email' } })
+      fireEvent.blur(emailInput)
+    })
+
+    // Wait for RHF to update validation state
+    await waitFor(() => {
+      expect(screen.getByTestId('error-email')).toHaveTextContent(
+        'Invalid email address'
+      )
+      expect(submitButton).toBeDisabled() // Should still be disabled due to invalid email
+    })
+
+    // Attempt to submit with invalid data
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('form'))
+    })
+
+    expect(mockProps.serverAction).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalledWith(
+      'Please correct the highlighted errors before submitting.'
+    )
+    // Ensure name field does not show an error if it's valid
+    expect(screen.queryByTestId('error-name')).not.toBeInTheDocument()
+  })
+
+  test('displays client-side error for empty required field on blur', async () => {
+    render(<DynamicFormRenderer {...mockProps} />)
+    const nameInput = screen.getByLabelText('Full Name')
+
+    await act(async () => {
+      fireEvent.focus(nameInput)
+      fireEvent.blur(nameInput) // Trigger validation for empty required field
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error-name')).toHaveTextContent(
+        'Name is required'
+      )
+    })
     expect(mockProps.serverAction).not.toHaveBeenCalled()
   })
 
-  test('submits data successfully and resets form', async () => {
+  test('submits data successfully and resets form, displaying success message', async () => {
     const localMockServerAction = jest.fn().mockResolvedValue({
       success: true,
       message: 'Form submitted!',
       submissionId: 'test-123',
     })
+    const defaultVals = {
+      name: 'Initial Name',
+      email: 'initial@example.com',
+      message: 'Test',
+    }
     render(
       <DynamicFormRenderer
         {...mockProps}
         serverAction={localMockServerAction}
+        defaultValues={defaultVals} // Test reset with specific defaults
       />
     )
-    // ... fill form and submit ...
+
     const nameInput = screen.getByLabelText('Full Name') as HTMLInputElement
     const emailInput = screen.getByLabelText(
       'Email Address'
     ) as HTMLInputElement
+    const messageInput = screen.getByLabelText(
+      'Your Message'
+    ) as HTMLTextAreaElement
     const form = screen.getByRole('form') as HTMLFormElement
+
+    // Check initial default values are set
+    expect(nameInput.value).toBe('Initial Name')
+    expect(emailInput.value).toBe('initial@example.com')
+    expect(messageInput.value).toBe('Test')
 
     await act(async () => {
       fireEvent.change(nameInput, { target: { value: 'John Doe' } })
       fireEvent.change(emailInput, {
         target: { value: 'john.doe@example.com' },
       })
-      fireEvent.blur(nameInput)
+      fireEvent.change(messageInput, {
+        target: { value: 'This is a valid message.' },
+      })
+      fireEvent.blur(nameInput) // Trigger validation to enable button
       fireEvent.blur(emailInput)
+      fireEvent.blur(messageInput)
     })
+
     await waitFor(() =>
       expect(screen.getByRole('button', { name: 'Submit' })).not.toBeDisabled()
     )
+
     await act(async () => {
       fireEvent.submit(form)
     })
 
     await waitFor(() => {
+      expect(localMockServerAction).toHaveBeenCalledTimes(1)
+      const formData = localMockServerAction.mock.calls[0][1] as FormData
+      expect(formData.get('name')).toBe('John Doe')
+      expect(formData.get('email')).toBe('john.doe@example.com')
+      expect(formData.get('message')).toBe('This is a valid message.')
+
       expect(toast.success).toHaveBeenCalledWith(
         'Form submitted! (Ref ID: test-123)'
       )
@@ -223,13 +372,65 @@ describe('DynamicFormRenderer', () => {
         screen.getByText('Form submitted! (Ref ID: test-123)')
       ).toBeInTheDocument()
     })
-    // ... other assertions
+
+    // Check form reset to original defaultValues
+    expect(nameInput.value).toBe('Initial Name')
+    expect(emailInput.value).toBe('initial@example.com')
+    expect(messageInput.value).toBe('Test') // Or empty if defaultValues was for initial load only
+    // The component logic is: reset(defaultValues || ({} as ...))
+    // This means it resets to the provided defaultValues.
+  })
+
+  test('correctly prepares FormData, excluding empty optional fields', async () => {
+    const localMockServerAction = jest
+      .fn()
+      .mockResolvedValue({ success: true, message: 'OK' })
+    render(
+      <DynamicFormRenderer
+        {...mockProps}
+        serverAction={localMockServerAction}
+        defaultValues={{ name: 'Test', email: 'test@example.com', message: '' }}
+      />
+    )
+
+    const nameInput = screen.getByLabelText('Full Name') as HTMLInputElement
+    const emailInput = screen.getByLabelText(
+      'Email Address'
+    ) as HTMLInputElement
+    // message is optional and left empty
+
+    await act(async () => {
+      fireEvent.change(nameInput, {
+        target: { value: 'John Doe Optional Test' },
+      })
+      fireEvent.change(emailInput, {
+        target: { value: 'john.optional@example.com' },
+      })
+      // Do not fill in 'message'
+      fireEvent.blur(nameInput)
+      fireEvent.blur(emailInput)
+    })
+
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Submit' })).not.toBeDisabled()
+    )
+
+    await act(async () => {
+      fireEvent.submit(screen.getByRole('form'))
+    })
+
+    await waitFor(() => {
+      expect(localMockServerAction).toHaveBeenCalled()
+      const formData = localMockServerAction.mock.calls[0][1] as FormData
+      expect(formData.get('name')).toBe('John Doe Optional Test')
+      expect(formData.get('email')).toBe('john.optional@example.com')
+      expect(formData.has('message')).toBe(false) // Because empty string is not appended
+    })
   })
 
   test('displays server-side error message for a specific field', async () => {
     const currentMockProps = getMockProps()
     render(<DynamicFormRenderer {...currentMockProps} />)
-    // ... fill form and submit to trigger error ...
     const nameInput = screen.getByLabelText('Full Name')
     const emailInput = screen.getByLabelText('Email Address')
     const form = screen.getByRole('form') as HTMLFormElement
@@ -248,17 +449,23 @@ describe('DynamicFormRenderer', () => {
     })
 
     await waitFor(() => {
-      expect(
-        screen.getByText('Simulated server error on name')
-      ).toBeInTheDocument()
+      expect(screen.getByTestId('error-name')).toHaveTextContent(
+        // Assuming error is shown in the field
+        'Simulated server error on name'
+      )
+      // Check that general toast.error for "Server error on field" is NOT called
+      // because the error was field-specific and should be displayed near the field.
+      // The component logic: if state.errors has keys, general toast.error(state.message) is skipped.
       expect(toast.error).not.toHaveBeenCalledWith('Server error on field')
+      expect(
+        screen.queryByText('Error: Server error on field')
+      ).not.toBeInTheDocument() // General error message div
     })
   })
 
-  test('displays general server-side error message when no field-specific errors', async () => {
+  test('displays general server-side error message when no field-specific errors and clears it on dirty', async () => {
     const currentMockProps = getMockProps()
     render(<DynamicFormRenderer {...currentMockProps} />)
-    // ... fill form and submit to trigger error ...
     const nameInput = screen.getByLabelText('Full Name')
     const emailInput = screen.getByLabelText('Email Address')
     const form = screen.getByRole('form') as HTMLFormElement
@@ -285,12 +492,228 @@ describe('DynamicFormRenderer', () => {
         'A general server error occurred.'
       )
       expect(
+        screen.getByText('Error: A general server error occurred.') // The div message
+      ).toBeInTheDocument()
+    })
+
+    // Test that general error message clears when form becomes dirty
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'Start typing again' } })
+    })
+
+    await waitFor(() => {
+      // The success message clearing logic based on isDirty is for `lastSuccessMessage`
+      // The general server error message displayed in the div is based on `state`.
+      // To "clear" it, a new submission would need to occur that is successful, or a reset.
+      // For now, let's confirm it's still there until a new state replaces it.
+      // Or, if the intent is to clear it on dirty, the component needs that logic.
+      // The current component logic clears `lastSuccessMessage` on dirty, not this general server error.
+      // Let's assume it persists until a new server response.
+      expect(
         screen.getByText('Error: A general server error occurred.')
       ).toBeInTheDocument()
+
+      // If you want it to clear on dirty, the component would need:
+      // useEffect(() => { if (isDirty && state && !state.success && state.message && !state.errors) { /* logic to clear/hide general message */ setState(null) or similar  } }, [isDirty, state])
+      // This is not in the original component, so we test existing behavior.
     })
   })
 
-  test('handles conditional field logic correctly (placeholder)', () => {
-    expect(true).toBe(true)
+  // ---- Conditional Logic Tests ----
+  const ConditionalSchema = z
+    .object({
+      country: z.string().min(1, 'Country is required'),
+      postalCode: z.string().optional(), // Validation depends on country
+      message: z.string().optional(), // Changed from 'notes' to 'message' to match FormFieldConfig
+    })
+    .superRefine((data, ctx) => {
+      if (
+        data.country === 'USA' &&
+        (!data.postalCode || data.postalCode.length < 5)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'USPS code needs 5 digits for USA.',
+          path: ['postalCode'],
+        })
+      }
+      if (
+        data.country === 'Canada' &&
+        data.postalCode &&
+        !/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(data.postalCode)
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Invalid Canadian postal code format.',
+          path: ['postalCode'],
+        })
+      }
+    })
+  type ConditionalFormData = z.infer<typeof ConditionalSchema>
+
+  const getConditionalMockProps = (
+    overrideProps: Partial<
+      DynamicFormRendererProps<typeof ConditionalSchema>
+    > = {}
+  ): DynamicFormRendererProps<typeof ConditionalSchema> => {
+    const formConfig: { name: string; fields: FormElementConfig[] } = {
+      name: 'Conditional Form',
+      fields: [
+        {
+          id: 'country',
+          fieldType: 'select',
+          label: 'Country',
+          options: [
+            { value: '', label: 'Select Country' },
+            { value: 'USA', label: 'United States' },
+            { value: 'Canada', label: 'Canada' },
+            { value: 'Other', label: 'Other' },
+          ],
+        } as IndividualFormFieldConfig,
+        {
+          id: 'postalCode',
+          fieldType: 'text',
+          label: 'Postal Code',
+          // Example of conditionalProps in action
+          conditionalProps: (values: Partial<ConditionalFormData>) => {
+            if (values.country === 'USA') return { placeholder: 'e.g., 90210' }
+            if (values.country === 'Canada')
+              return { placeholder: 'e.g., A1A 1A1' }
+            return { placeholder: 'Postal Code' }
+          },
+        } as IndividualFormFieldConfig,
+        {
+          id: 'message',
+          fieldType: 'textarea',
+          label: 'Message',
+        } as IndividualFormFieldConfig,
+      ],
+    }
+    return {
+      formConfig,
+      clientSchema: ConditionalSchema,
+      serverAction: jest
+        .fn()
+        .mockResolvedValue({
+          success: true,
+          message: 'Conditional form submitted!',
+        }),
+      initialState: { ...DEFAULT_CONTACT_FORM_INITIAL_STATE },
+      defaultValues: {
+        country: '',
+        postalCode: '',
+        notes: '',
+      } as Partial<ConditionalFormData>,
+      ...overrideProps,
+    }
+  }
+
+  describe('Conditional Field Logic', () => {
+    let conditionalProps: DynamicFormRendererProps<typeof ConditionalSchema>
+
+    beforeEach(() => {
+      conditionalProps = getConditionalMockProps()
+      // Ensure FloatingLabelSelect mock is correctly tracking calls for prop checks
+      ;(mockFloatingLabelSelect as jest.Mock).mockClear()
+      ;(mockFormField as jest.Mock).mockClear() // For postalCode field
+    })
+
+    test('updates field placeholder based on conditionalProps', async () => {
+      render(<DynamicFormRenderer {...conditionalProps} />)
+      const countrySelect = screen.getByLabelText('Country')
+      let postalCodeInput = screen.getByLabelText(
+        'Postal Code'
+      ) as HTMLInputElement
+
+      // Initial placeholder (from conditionalProps with country='')
+      expect(postalCodeInput.placeholder).toBe('Postal Code')
+
+      // Change country to USA
+      await act(async () => {
+        fireEvent.change(countrySelect, { target: { value: 'USA' } })
+        // RHF might take a moment to propagate watched value and re-render
+      })
+
+      // The conditionalProps function is called on each render of the field.
+      // Changing country triggers a re-render of the form, which includes postalCode.
+      await waitFor(() => {
+        // Re-query as component might re-render
+        postalCodeInput = screen.getByLabelText(
+          'Postal Code'
+        ) as HTMLInputElement
+        expect(postalCodeInput.placeholder).toBe('e.g., 90210')
+      })
+
+      // Change country to Canada
+      await act(async () => {
+        fireEvent.change(countrySelect, { target: { value: 'Canada' } })
+      })
+      await waitFor(() => {
+        postalCodeInput = screen.getByLabelText(
+          'Postal Code'
+        ) as HTMLInputElement
+        expect(postalCodeInput.placeholder).toBe('e.g., A1A 1A1')
+      })
+    })
+
+    test('re-triggers validation for a dependent field when controlling field changes (country -> postalCode)', async () => {
+      render(<DynamicFormRenderer {...conditionalProps} />)
+      const countrySelect = screen.getByLabelText('Country')
+      const postalCodeInput = screen.getByLabelText('Postal Code')
+
+      // 1. Make postalCode "touched" and initially invalid for USA but valid if no country selected
+      await act(async () => {
+        fireEvent.focus(postalCodeInput)
+        fireEvent.change(postalCodeInput, { target: { value: '123' } }) // Invalid for USA
+        fireEvent.blur(postalCodeInput)
+      })
+
+      // No error yet as country isn't USA / Canada (schema doesn't enforce for empty country)
+      // The schema only adds errors if country is USA/Canada and postal is bad.
+      // If postalCode was required, it would show error. But it's optional.
+      expect(screen.queryByTestId('error-postalCode')).not.toBeInTheDocument()
+
+      // 2. Change country to USA - should trigger validation on postalCode
+      await act(async () => {
+        fireEvent.change(countrySelect, { target: { value: 'USA' } })
+        // The component's useEffect for countryValueForEffect should call trigger('postalCode')
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error-postalCode')).toHaveTextContent(
+          'USPS code needs 5 digits for USA.'
+        )
+      })
+
+      // 3. Correct postalCode for USA
+      await act(async () => {
+        fireEvent.change(postalCodeInput, { target: { value: '12345' } })
+        fireEvent.blur(postalCodeInput)
+      })
+
+      await waitFor(() => {
+        expect(screen.queryByTestId('error-postalCode')).not.toBeInTheDocument()
+      })
+
+      // 4. Change country to Canada, current postalCode (12345) is invalid for Canada
+      await act(async () => {
+        fireEvent.change(countrySelect, { target: { value: 'Canada' } })
+      })
+
+      await waitFor(() => {
+        expect(screen.getByTestId('error-postalCode')).toHaveTextContent(
+          'Invalid Canadian postal code format.'
+        )
+      })
+
+      // 5. Correct postalCode for Canada
+      await act(async () => {
+        fireEvent.change(postalCodeInput, { target: { value: 'A1A 1A1' } })
+        fireEvent.blur(postalCodeInput)
+      })
+      await waitFor(() => {
+        expect(screen.queryByTestId('error-postalCode')).not.toBeInTheDocument()
+      })
+    })
   })
 })

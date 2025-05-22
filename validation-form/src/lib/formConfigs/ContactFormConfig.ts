@@ -131,6 +131,7 @@ export const contactFormConfiguration: {
       fieldType: 'textarea',
       label: 'Message (Optional)',
       rows: 4,
+      placeholder: ' ',
     },
   ],
 }
