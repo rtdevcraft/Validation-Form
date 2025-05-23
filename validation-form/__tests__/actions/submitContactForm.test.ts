@@ -221,4 +221,68 @@ describe('submitContactForm Server Action (with DYNAMIC action import)', () => {
     )
     expect(result.errors).toBeUndefined()
   })
+
+  it('should handle PrismaClientKnownRequestError using duck-typing fallback', async () => {
+    // This simulates a scenario where `error instanceof Prisma.PrismaClientKnownRequestError` might fail.
+    const prismaErrorObject = {
+      name: 'PrismaClientKnownRequestError',
+      code: 'P2002',
+      clientVersion: 'test-version',
+      meta: { target: ['email'] },
+      message: 'Simulated Prisma Error',
+    }
+    mockCreateDatabaseFn.mockRejectedValue(prismaErrorObject)
+
+    const formData = createFormData(validRawData)
+    const result = await submitContactFormActual(
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
+      formData
+    )
+
+    expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
+    expect(result.success).toBe(false)
+    expect(result.message).toBe(
+      'Database error occurred. Could not save submission.'
+    )
+    expect(result.errors).toBeUndefined()
+  })
+
+  it('should successfully save valid data without an optional message', async () => {
+    const dataWithoutMessage = { ...validRawData } as Partial<
+      typeof validRawData
+    >
+    delete dataWithoutMessage.message // Message is optional
+
+    const mockSubmission: ContactSubmissionReturnType = {
+      id: BigInt(2),
+      name: validRawData.name,
+      email: validRawData.email,
+      phone: validRawData.phone,
+      streetAddress: validRawData.streetAddress,
+      city: validRawData.city,
+      stateProvince: validRawData.stateProvince,
+      country: validRawData.country,
+      postalCode: validRawData.postalCode,
+      message: null, // Expect message to be null in the DB
+      createdAt: new Date(),
+    }
+    mockCreateDatabaseFn.mockResolvedValue(mockSubmission)
+
+    const formData = createFormData(dataWithoutMessage)
+    const result = await submitContactFormActual(
+      DEFAULT_CONTACT_FORM_INITIAL_STATE,
+      formData
+    )
+
+    expect(mockCreateDatabaseFn).toHaveBeenCalledTimes(1)
+    expect(mockCreateDatabaseFn).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        ...dataWithoutMessage,
+        message: undefined,
+      }),
+    })
+    expect(result.success).toBe(true)
+    expect(result.message).toBe('Submission successful!')
+    expect(result.submissionId).toBe('2')
+  })
 })

@@ -1,4 +1,3 @@
-// src/app/components/forms/FloatingLabelSelect.tsx
 import React, { Fragment } from 'react'
 import { Listbox, Transition } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/20/solid'
@@ -9,7 +8,7 @@ export interface SelectOption {
   label: string
 }
 
-interface FloatingLabelSelectProps {
+export interface FloatingLabelSelectProps {
   id: string
   label: string
   options: SelectOption[]

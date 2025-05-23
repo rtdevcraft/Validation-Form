@@ -328,7 +328,8 @@ describe('Contact Form Schemas', () => {
     it('should let other validations catch missing fields if postal code is present but country is missing for refine', () => {
       const data = { ...createValidData(), postalCode: '12345' }
       delete (data as Partial<ContactFormData>).country // country is undefined
-      const result = refinedFormSchema.safeParse(data)
+      const dataWithoutCountry: Omit<ContactFormData, 'country'> = data
+      const result = refinedFormSchema.safeParse(dataWithoutCountry)
       expect(result.success).toBe(false)
       if (!result.success) {
         expect(
